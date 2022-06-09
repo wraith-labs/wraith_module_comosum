@@ -2,19 +2,68 @@ package pineconemanager
 
 import (
 	"context"
+	"crypto/ed25519"
+	"log"
+	"net/http"
 	"sync"
 )
 
 type pineconeManager struct {
-	// sync.Once instances ensuring that each method is only executed once at a given time.
+	// Once instances ensuring that each method is only executed once at a given time.
 	startOnce   sync.Once
 	stopOnce    sync.Once
 	restartOnce sync.Once
 
-	// A context (and related properties) which controls the lifetime of the pinecone manager.
+	// A context and related fields which control the lifetime of the pinecone manager.
 	ctx       context.Context
 	ctxCancel context.CancelFunc
 	ctxLock   sync.RWMutex
+
+	//
+	// Config options
+	//
+
+	// The private key for this pinecone peer; effectively its "identity".
+	PineconeIdentity ed25519.PrivateKey
+
+	// A logger instance which is passed on to pinecone.
+	Logger log.Logger
+
+	// The address to listen on for incoming pinecone connections. If this
+	// is an empty string, the node does not listen for connections and
+	// multicast is also disabled (so the node can only connect to peers
+	// outbound and cannot receive peer connections).
+	InboundAddr string
+
+	// The address to listen on for inbound HTTP. This allows peers to connect
+	// to this node over websockets and exposes a debugging endpoint if enabled
+	// via `WebserverManholePath`. Additional routes can be configured via
+	// `WebserverHandlers`. The webserver is disabled if this option is an empty
+	// string.
+	WebserverAddr string
+
+	// A path on the webserver to expose debugging information at. If this is an
+	// empty string, the node does not expose debugging information. This setting
+	// depends on the webserver being enabled.
+	WebserverManholePath string
+
+	// Whether to advertise this peer on the local network via multicast. This allows
+	// for peers to find each other locally but may require modifications to firewall
+	// rules. This option is always disabled if `InboundAddr` is not set.
+	UseMulticast bool
+
+	// A list of protocols supported by this node over pinecone.
+	WrappedProtos []string
+
+	// A list of pinecone nodes with known addresses which this node can connect to
+	// for a more stable connection to the network.
+	StaticPeers []string
+
+	// Additional handlers added to the webserver. This option exists mainly for
+	// efficiency, to allow nodes which also need to run a regular webserver to
+	// use the one used by pinecone for websockets. This saves allocating another
+	// port and other system resources.
+	WebserverHandlers map[string]http.Handler
 }
 
 func (pm *pineconeManager) Start() {

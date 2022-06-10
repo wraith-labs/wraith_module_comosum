@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -111,7 +112,7 @@ func (pm *pineconeManager) ConfSet(confId pineconeManagerConfOption, confVal any
 			return invalidTypeErr
 		}
 	case CONF_LOGGER:
-		if _, ok := confVal.(log.Logger); !ok {
+		if _, ok := confVal.(*log.Logger); !ok {
 			return invalidTypeErr
 		}
 	case CONF_INBOUND_ADDR, CONF_WEBSERVER_ADDR, CONF_WEBSERVER_DEBUG_PATH:
@@ -138,6 +139,32 @@ func (pm *pineconeManager) ConfSet(confId pineconeManagerConfOption, confVal any
 	return nil
 }
 
+func (pm *pineconeManager) ConfSetDefaults() {
+	_, randomPineconeIdentity, randomPineconeIdentityErr := ed25519.GenerateKey(nil)
+	if randomPineconeIdentityErr != nil {
+		panic(fmt.Errorf("fatal error while generating pinecone identity for pineconeManager defaults: %e", randomPineconeIdentityErr))
+	}
+
+	defaults := map[pineconeManagerConfOption]any{
+		CONF_PINECONE_IDENTITY:    randomPineconeIdentity,
+		CONF_LOGGER:               log.New(io.Discard, "", 0),
+		CONF_INBOUND_ADDR:         ":0",
+		CONF_WEBSERVER_ADDR:       ":0",
+		CONF_WEBSERVER_DEBUG_PATH: "",
+		CONF_USE_MULTICAST:        false,
+		CONF_WRAPPED_PROTOS:       []string{},
+		CONF_STATIC_PEERS:         []string{},
+		CONF_WEBSERVER_HANDLERS:   map[string]http.Handler{},
+	}
+
+	for key, value := range defaults {
+		err := pm.ConfSet(key, value)
+		if err != nil {
+			panic(fmt.Errorf("fatal error while setting pineconeManager defaults: %e", err))
+		}
+	}
+}
+
 // Start the pinecone manager as configured. This blocks while the
 // manager is running but can be started in a goroutine.
 func (pm *pineconeManager) Start() {
@@ -152,6 +179,13 @@ func (pm *pineconeManager) Start() {
 		pm.ctxLock.Lock()
 		pm.ctx, pm.ctxCancel = context.WithCancel(context.Background())
 		pm.ctxLock.Unlock()
+
+		//
+		// Main pinecone stuff
+		//
+
+		logger, _ := pm.ConfGet(CONF_LOGGER)
+		privkey, _ := pm.ConfGet(CONF_PINECONE_IDENTITY)
 
 		for {
 			select {
@@ -230,6 +264,11 @@ func GetInstance() *pineconeManager {
 	// Create and initialise an instance of pineconeManager only once.
 	initonce.Do(func() {
 		pineconeManagerInstance = &pineconeManager{}
+
+		// Set default config values to ensure that the config is never
+		// in an unusable state and allow for sane options without setting
+		// everything manually.
+		pineconeManagerInstance.ConfSetDefaults()
 	})
 
 	return pineconeManagerInstance

@@ -53,6 +53,11 @@ const (
 	// use the one used by pinecone for websockets. This saves allocating another
 	// port and other system resources.
 	CONF_WEBSERVER_HANDLERS
+
+	// Because this is at the bottom, it will automatically hold the value representing
+	// the number of config options available. This is useful to create an array for
+	// config options.
+	conf_option_count
 )
 
 type pineconeManager struct {
@@ -66,22 +71,9 @@ type pineconeManager struct {
 	ctxCancel context.CancelFunc
 	ctxLock   sync.RWMutex
 
-	// A lock for the below config options
+	// An array of config options for the manager and a lock to make it thread-safe.
+	conf     [conf_option_count]any
 	confLock sync.RWMutex
-
-	//
-	// Config options
-	//
-
-	pineconeIdentity   ed25519.PrivateKey
-	logger             log.Logger
-	inboundAddr        string
-	webserverAddr      string
-	webserverDebugPath string
-	useMulticast       bool
-	wrappedProtos      []string
-	staticPeers        []string
-	webserverHandlers  map[string]http.Handler
 }
 
 // Read a config option of the pinecone manager. This is thread-safe.
@@ -89,96 +81,60 @@ func (pm *pineconeManager) ConfGet(confId pineconeManagerConfOption) (any, error
 	defer pm.confLock.RUnlock()
 	pm.confLock.RLock()
 
-	switch confId {
-	case CONF_PINECONE_IDENTITY:
-		return pm.pineconeIdentity, nil
-	case CONF_LOGGER:
-		return pm.logger, nil
-	case CONF_INBOUND_ADDR:
-		return pm.inboundAddr, nil
-	case CONF_WEBSERVER_ADDR:
-		return pm.inboundAddr, nil
-	case CONF_WEBSERVER_DEBUG_PATH:
-		return pm.webserverDebugPath, nil
-	case CONF_USE_MULTICAST:
-		return pm.useMulticast, nil
-	case CONF_WRAPPED_PROTOS:
-		return pm.wrappedProtos, nil
-	case CONF_STATIC_PEERS:
-		return pm.staticPeers, nil
-	case CONF_WEBSERVER_HANDLERS:
-		return pm.webserverHandlers, nil
-	default:
+	// Make sure we're not writing out-of-bounds (though this should never really
+	// happen unless we did something wrong in this module specifically).
+	if confId > conf_option_count-1 {
 		return nil, fmt.Errorf("config option %d does not exist", confId)
 	}
+
+	return pm.conf[confId], nil
 }
 
 // Set a config option of the pinecone manager. This is thead-safe. Note that the
-// manager will need to be restarted for changes to take effect.
+// manager will need to be restarted if it's running for changes to take effect.
 func (pm *pineconeManager) ConfSet(confId pineconeManagerConfOption, confVal any) error {
 	defer pm.confLock.Unlock()
 	pm.confLock.Lock()
 
-	invalidTypeErr := fmt.Errorf("invalid value type for config %d", confId)
+	// Make sure we're not writing out-of-bounds (though this should never really
+	// happen unless we did something wrong in this module specifically).
+	if confId > conf_option_count-1 {
+		return fmt.Errorf("config option %d does not exist", confId)
+	}
 
+	invalidTypeErr := fmt.Errorf("invalid type for config value %d", confId)
+
+	// Validate config values before writing them.
 	switch confId {
 	case CONF_PINECONE_IDENTITY:
-		if val, ok := confVal.(ed25519.PrivateKey); ok {
-			pm.pineconeIdentity = val
-		} else {
+		if _, ok := confVal.(ed25519.PrivateKey); !ok {
 			return invalidTypeErr
 		}
 	case CONF_LOGGER:
-		if val, ok := confVal.(log.Logger); ok {
-			pm.logger = val
-		} else {
+		if _, ok := confVal.(log.Logger); !ok {
 			return invalidTypeErr
 		}
-	case CONF_INBOUND_ADDR:
-		if val, ok := confVal.(string); ok {
-			pm.inboundAddr = val
-		} else {
-			return invalidTypeErr
-		}
-	case CONF_WEBSERVER_ADDR:
-		if val, ok := confVal.(string); ok {
-			pm.webserverAddr = val
-		} else {
-			return invalidTypeErr
-		}
-	case CONF_WEBSERVER_DEBUG_PATH:
-		if val, ok := confVal.(string); ok {
-			pm.webserverDebugPath = val
-		} else {
+	case CONF_INBOUND_ADDR, CONF_WEBSERVER_ADDR, CONF_WEBSERVER_DEBUG_PATH:
+		if _, ok := confVal.(string); !ok {
 			return invalidTypeErr
 		}
 	case CONF_USE_MULTICAST:
-		if val, ok := confVal.(bool); ok {
-			pm.useMulticast = val
-		} else {
+		if _, ok := confVal.(bool); !ok {
 			return invalidTypeErr
 		}
-	case CONF_WRAPPED_PROTOS:
-		if val, ok := confVal.([]string); ok {
-			pm.wrappedProtos = val
-		} else {
-			return invalidTypeErr
-		}
-	case CONF_STATIC_PEERS:
-		if val, ok := confVal.([]string); ok {
-			pm.staticPeers = val
-		} else {
+	case CONF_WRAPPED_PROTOS, CONF_STATIC_PEERS:
+		if _, ok := confVal.([]string); !ok {
 			return invalidTypeErr
 		}
 	case CONF_WEBSERVER_HANDLERS:
-		if val, ok := confVal.(map[string]http.Handler); ok {
-			pm.webserverHandlers = val
-		} else {
+		if _, ok := confVal.(map[string]http.Handler); !ok {
 			return invalidTypeErr
 		}
-	default:
-		return fmt.Errorf("config option %d does not exist", confId)
 	}
+
+	// Write the config
+	pm.conf[confId] = confVal
+
 	return nil
 }
 

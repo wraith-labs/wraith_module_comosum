@@ -3,11 +3,24 @@ package pineconemanager
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"sync"
+	"time"
+
+	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/misc"
+	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
+	pineconeConnections "github.com/matrix-org/pinecone/connections"
+	pineconeMulticast "github.com/matrix-org/pinecone/multicast"
+	pineconeRouter "github.com/matrix-org/pinecone/router"
+	pineconeSessions "github.com/matrix-org/pinecone/sessions"
+	"github.com/sirupsen/logrus"
 )
 
 type pineconeManagerConfOption int
@@ -184,14 +197,129 @@ func (pm *pineconeManager) Start() {
 		// Main pinecone stuff
 		//
 
-		logger, _ := pm.ConfGet(CONF_LOGGER)
-		privkey, _ := pm.ConfGet(CONF_PINECONE_IDENTITY)
+		// Grab a snapshot of the config (this makes access to config
+		// values easier and ensures the config is never in an inconsistent
+		// state when values need to be read multiple times).
+		privkey := misc.NoError(pm.ConfGet(CONF_PINECONE_IDENTITY)).(ed25519.PrivateKey)
+		logger := misc.NoError(pm.ConfGet(CONF_LOGGER)).(*log.Logger)
+		inboundAddr := misc.NoError(pm.ConfGet(CONF_INBOUND_ADDR)).(string)
+		webserverAddr := misc.NoError(pm.ConfGet(CONF_WEBSERVER_ADDR)).(string)
+		webserverDebugPath := misc.NoError(pm.ConfGet(CONF_WEBSERVER_DEBUG_PATH)).(string)
+		useMulticast := misc.NoError(pm.ConfGet(CONF_USE_MULTICAST)).(bool)
+		protos := misc.NoError(pm.ConfGet(CONF_WRAPPED_PROTOS)).([]string)
+		staticPeers := misc.NoError(pm.ConfGet(CONF_STATIC_PEERS)).([]string)
+		webserverHandlers := misc.NoError(pm.ConfGet(CONF_WEBSERVER_HANDLERS)).(map[string]http.Handler)
+
+		pRouter := pineconeRouter.NewRouter(logger, privkey, false)
+		pQUIC := pineconeSessions.NewSessions(logger, pRouter, protos)
+		pMulticast := pineconeMulticast.NewMulticast(logger, pRouter)
+		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
+
+		if useMulticast {
+			pMulticast.Start()
+		}
+
+		for _, peer := range staticPeers {
+			pManager.AddPeer(peer)
+		}
+
+		if inboundAddr != "" {
+
+		}
+
+		///////////////////////////////
+		go func() {
+			listener, err := net.Listen("tcp", *instanceListen)
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Println("Listening on", listener.Addr())
+
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					logrus.WithError(err).Error("listener.Accept failed")
+					continue
+				}
+
+				port, err := pRouter.Connect(
+					conn,
+					pineconeRouter.ConnectionPeerType(pineconeRouter.PeerTypeRemote),
+				)
+				if err != nil {
+					logrus.WithError(err).Error("pSwitch.Connect failed")
+					continue
+				}
+
+				fmt.Println("Inbound connection", conn.RemoteAddr(), "is connected to port", port)
+			}
+		}()
+
+		wsUpgrader := websocket.Upgrader{
+			CheckOrigin: func(_ *http.Request) bool {
+				return true
+			},
+		}
+		httpRouter := mux.NewRouter().SkipClean(true).UseEncodedPath()
+		httpRouter.PathPrefix("/test").HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "HeloWorld Function") })
+		httpRouter.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+			c, err := wsUpgrader.Upgrade(w, r, nil)
+			if err != nil {
+				logrus.WithError(err).Error("Failed to upgrade WebSocket connection")
+				return
+			}
+			conn := wrapWebSocketConn(c)
+			if _, err = pRouter.Connect(
+				conn,
+				pineconeRouter.ConnectionZone("websocket"),
+				pineconeRouter.ConnectionPeerType(pineconeRouter.PeerTypeRemote),
+			); err != nil {
+				logrus.WithError(err).Error("Failed to connect WebSocket peer to Pinecone switch")
+			}
+		})
+		httpRouter.HandleFunc("/pinecone", pRouter.ManholeHandler)
+
+		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
+		pMux.PathPrefix("/ptest").HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "HeloWorld Function") })
+
+		pHTTP := pQUIC.Protocol("matrix").HTTP()
+		pHTTP.Mux().Handle("/ptest", pMux)
+
+		// Build both ends of a HTTP multiplex.
+		httpServer := &http.Server{
+			Addr:         ":0",
+			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  60 * time.Second,
+			BaseContext: func(_ net.Listener) context.Context {
+				return context.Background()
+			},
+			Handler: pMux,
+		}
+
+		go func() {
+			pubkey := pRouter.PublicKey()
+			logrus.Info("Listening on ", hex.EncodeToString(pubkey[:]))
+			logrus.Fatal(httpServer.Serve(pQUIC.Protocol("matrix")))
+		}()
+		go func() {
+			httpBindAddr := fmt.Sprintf(":%d", *instancePort)
+			logrus.Info("Listening on ", httpBindAddr)
+			logrus.Fatal(http.ListenAndServe(httpBindAddr, httpRouter))
+		}()
+		///////////////////////////////
 
 		for {
 			select {
 			case <-pm.ctx.Done():
 				break
 			}
+		}
+
+		if useMulticast {
+			pMulticast.Stop()
 		}
 	})
 }

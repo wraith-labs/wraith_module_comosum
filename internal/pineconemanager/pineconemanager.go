@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -19,10 +20,9 @@ import (
 	pineconeMulticast "github.com/matrix-org/pinecone/multicast"
 	pineconeRouter "github.com/matrix-org/pinecone/router"
 	pineconeSessions "github.com/matrix-org/pinecone/sessions"
-	"github.com/sirupsen/logrus"
 )
 
-type pineconeManager struct {
+type manager struct {
 	// Once instances ensuring that each method is only executed once at a given time.
 	startOnce   misc.CheckableOnce
 	stopOnce    misc.CheckableOnce
@@ -32,100 +32,30 @@ type pineconeManager struct {
 	reqExit chan struct{}
 	ackExit chan struct{}
 
-	// An array of config options for the manager and a lock to make it thread-safe.
-	conf     [conf_option_count]any
-	confLock sync.RWMutex
-}
-
-// Read a config option of the pinecone manager. This is thread-safe.
-func (pm *pineconeManager) ConfGet(confId pineconeManagerConfOption) any {
-	defer pm.confLock.RUnlock()
-	pm.confLock.RLock()
-
-	return pm.conf[confId]
-}
-
-// Set a config option of the pinecone manager. This is thead-safe. Note that the
-// manager will need to be restarted if it's running for changes to take effect.
-func (pm *pineconeManager) ConfSet(confId pineconeManagerConfOption, confVal any) error {
-	defer pm.confLock.Unlock()
-	pm.confLock.Lock()
-
-	// Make sure we're not writing out-of-bounds (though this should never really
-	// happen unless we did something wrong in this module specifically).
-	if confId > conf_option_count-1 {
-		return fmt.Errorf("config option %d does not exist", confId)
-	}
-
-	invalidTypeErr := fmt.Errorf("invalid type for config value %d", confId)
-
-	// Validate config values before writing them.
-	// TODO: Add extra validation where possible.
-	switch confId {
-	case CONF_PINECONE_IDENTITY:
-		if _, ok := confVal.(ed25519.PrivateKey); !ok {
-			return invalidTypeErr
-		}
-	case CONF_LOGGER:
-		if _, ok := confVal.(*log.Logger); !ok {
-			return invalidTypeErr
-		}
-	case CONF_INBOUND_ADDR:
-		if _, ok := confVal.(*net.TCPAddr); !ok {
-			return invalidTypeErr
-		}
-	case CONF_WEBSERVER_ADDR, CONF_WEBSERVER_DEBUG_PATH:
-		if _, ok := confVal.(string); !ok {
-			return invalidTypeErr
-		}
-	case CONF_USE_MULTICAST:
-		if _, ok := confVal.(bool); !ok {
-			return invalidTypeErr
-		}
-	case CONF_WRAPPED_PROTOS, CONF_STATIC_PEERS:
-		if _, ok := confVal.([]string); !ok {
-			return invalidTypeErr
-		}
-	case CONF_WEBSERVER_HANDLERS:
-		if _, ok := confVal.(map[string]http.Handler); !ok {
-			return invalidTypeErr
-		}
-	}
-
-	// Update the config.
-	pm.conf[confId] = confVal
-
-	return nil
+	// A struct of config options for the manager with a lock to make it thread-safe.
+	conf config
 }
 
 // Start the pinecone manager as configured. This blocks while the
 // manager is running but can be started in a goroutine.
-func (pm *pineconeManager) Start() {
+func (pm *manager) Start() {
 	// Only execute this once at a time.
 	pm.startOnce.Do(func() {
 		// Acknowledge the exit request that caused the manager to exit.
 		// This MUST be the first defer as that means it gets executed last.
-		defer func(pm *pineconeManager) {
+		defer func(pm *manager) {
 			pm.ackExit <- struct{}{}
 		}(pm)
 
 		// Reset startOnce when this function exits.
-		defer func(pm *pineconeManager) {
+		defer func(pm *manager) {
 			pm.startOnce = misc.CheckableOnce{}
 		}(pm)
 
-		// Grab a snapshot of the config (this makes access to config
-		// values easier and ensures the config is never in an inconsistent
-		// state when values need to be read multiple times).
-		privkey := pm.ConfGet(CONF_PINECONE_IDENTITY).(ed25519.PrivateKey)
-		logger := pm.ConfGet(CONF_LOGGER).(*log.Logger)
-		inboundAddr := pm.ConfGet(CONF_INBOUND_ADDR).(*net.TCPAddr)
-		webserverAddr := pm.ConfGet(CONF_WEBSERVER_ADDR).(string)
-		webserverDebugPath := pm.ConfGet(CONF_WEBSERVER_DEBUG_PATH).(string)
-		useMulticast := pm.ConfGet(CONF_USE_MULTICAST).(bool)
-		protos := pm.ConfGet(CONF_WRAPPED_PROTOS).([]string)
-		staticPeers := pm.ConfGet(CONF_STATIC_PEERS).([]string)
-		webserverHandlers := pm.ConfGet(CONF_WEBSERVER_HANDLERS).(map[string]http.Handler)
+		// Grab a snapshot of the config (this ensures the
+		// config is never in an inconsistent state when values
+		// need to be read multiple times).
+		c := pm.conf.snapshot()
 
 		// Keep track of any goroutines we start.
 		var wg sync.WaitGroup
@@ -138,36 +68,34 @@ func (pm *pineconeManager) Start() {
 		//
 
 		// Set up pinecone components.
-		pRouter := pineconeRouter.NewRouter(logger, privkey, false)
-		pQUIC := pineconeSessions.NewSessions(logger, pRouter, protos)
-		pMulticast := pineconeMulticast.NewMulticast(logger, pRouter)
+		pRouter := pineconeRouter.NewRouter(c.logger, c.pineconeIdentity, false)
+		pQUIC := pineconeSessions.NewSessions(c.logger, pRouter, []string{"wraith"})
+		pMulticast := pineconeMulticast.NewMulticast(c.logger, pRouter)
 		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
 
-		if useMulticast {
+		if c.useMulticast {
 			wg.Add(1)
 			pMulticast.Start()
 		}
 
 		// Connect to any static peers we were given.
-		for _, peer := range staticPeers {
+		for _, peer := range c.staticPeers {
 			pManager.AddPeer(peer)
 		}
 
 		// Listen for inbound connections if a listener was configured.
-		if inboundAddr != nil {
+		if c.inboundAddr != "" {
 			wg.Add(1)
 			go func(ctx context.Context, wg sync.WaitGroup) {
-				listener, err := net.ListenTCP("tcp", inboundAddr)
+				listenCfg := net.ListenConfig{}
+				listener, err := listenCfg.Listen(ctx, "tcp", c.inboundAddr)
+
 				if err != nil {
 					// TODO: Handle this?
 					panic(fmt.Errorf("error while setting up inbound pinecone listener: %e", err))
 				}
 
 				for ctx.Err() == nil {
-					// Don't block indefinitely on listener.Accept() so we can exit the
-					// goroutine when the context in cancelled.
-					listener.SetDeadline(time.Now().Add(time.Second))
-
 					// Accept incoming connections. In case of error, drop connection but
 					// otherwise ignore.
 					conn, err := listener.Accept()
@@ -192,7 +120,6 @@ func (pm *pineconeManager) Start() {
 		}
 
 		///////////////////////////////
-
 		wsUpgrader := websocket.Upgrader{
 			CheckOrigin: func(_ *http.Request) bool {
 				return true
@@ -202,7 +129,6 @@ func (pm *pineconeManager) Start() {
 		httpRouter.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 			c, err := wsUpgrader.Upgrade(w, r, nil)
 			if err != nil {
-				logrus.WithError(err).Error("Failed to upgrade WebSocket connection")
 				return
 			}
 			conn := wrapWebSocketConn(c)
@@ -211,21 +137,21 @@ func (pm *pineconeManager) Start() {
 				pineconeRouter.ConnectionZone("websocket"),
 				pineconeRouter.ConnectionPeerType(pineconeRouter.PeerTypeRemote),
 			); err != nil {
-				logrus.WithError(err).Error("Failed to connect WebSocket peer to Pinecone switch")
+				// TODO: ?
 			}
 		})
-		if webserverDebugPath != "" {
-			httpRouter.HandleFunc(webserverDebugPath, pRouter.ManholeHandler)
+		if c.webserverDebugPath != "" {
+			httpRouter.HandleFunc(c.webserverDebugPath, pRouter.ManholeHandler)
 		}
 
 		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
-		pMux.PathPrefix("/ptest").HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "HeloWorld Function") })
+		pMux.PathPrefix("/ptest").HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "HelloWorld Function") })
 
-		pHTTP := pQUIC.Protocol("matrix").HTTP()
+		pHTTP := pQUIC.Protocol("wraith").HTTP()
 		pHTTP.Mux().Handle("/ptest", pMux)
 
 		// Build both ends of a HTTP multiplex.
-		httpServer := &http.Server{
+		httpServer := http.Server{
 			Addr:         ":0",
 			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 			ReadTimeout:  10 * time.Second,
@@ -238,19 +164,19 @@ func (pm *pineconeManager) Start() {
 		}
 
 		go func() {
-			httpServer.Serve(pQUIC.Protocol("matrix"))
+			httpServer.Serve(pQUIC.Protocol("wraith"))
 		}()
 		go func() {
-			httpBindAddr := fmt.Sprintf(":%d", webserverAddr)
-			http.ListenAndServe(httpBindAddr, httpRouter)
+			http.ListenAndServe(c.webserverAddr, httpRouter)
 		}()
 		///////////////////////////////
 
 		// Wait until exit is requested.
+	mainloop:
 		for {
 			select {
 			case <-pm.reqExit:
-				break
+				break mainloop
 			}
 		}
 
@@ -258,7 +184,7 @@ func (pm *pineconeManager) Start() {
 		ctxCancel()
 
 		// Tear down pinecone.
-		if useMulticast {
+		if c.useMulticast {
 			pMulticast.Stop()
 			wg.Done()
 		}
@@ -272,11 +198,11 @@ func (pm *pineconeManager) Start() {
 }
 
 // Stop the pinecone manager.
-func (pm *pineconeManager) Stop() {
+func (pm *manager) Stop() {
 	// Only execute this once at a time.
 	pm.stopOnce.Do(func() {
 		// Reset stopOnce when this function exits.
-		defer func(pm *pineconeManager) {
+		defer func(pm *manager) {
 			pm.stopOnce = misc.CheckableOnce{}
 		}(pm)
 
@@ -299,11 +225,11 @@ func (pm *pineconeManager) Stop() {
 }
 
 // Restart the pinecone manager. Equivalent to calling Stop() and Start().
-func (pm *pineconeManager) Restart() {
+func (pm *manager) Restart() {
 	// Only execute this once at a time.
 	pm.restartOnce.Do(func() {
 		// Reset restartOnce when this function exits.
-		defer func(pm *pineconeManager) {
+		defer func(pm *manager) {
 			pm.restartOnce = misc.CheckableOnce{}
 		}(pm)
 
@@ -313,48 +239,50 @@ func (pm *pineconeManager) Restart() {
 }
 
 // Check whether the pinecone manager is currently running.
-func (pm *pineconeManager) IsRunning() bool {
+func (pm *manager) IsRunning() bool {
 	return pm.startOnce.Doing()
 }
 
 var initonce sync.Once
-var pineconeManagerInstance *pineconeManager = nil
+var managerInstance *manager = nil
 
 // Get the instance of the pinecone manager. This instance is shared for
 // the entire program and successive calls return the existing instance.
-func GetInstance() *pineconeManager {
-	// Create and initialise an instance of pineconeManager only once.
+func GetInstance() *manager {
+	// Create and initialise an instance of manager only once.
 	initonce.Do(func() {
-		pineconeManagerInstance = &pineconeManager{}
+		// Disable quic-go's debug message
+		os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
+
+		managerInstance = &manager{}
 
 		// Generate some default options.
 
 		_, randomPineconeIdentity, randomPineconeIdentityErr := ed25519.GenerateKey(nil)
 		if randomPineconeIdentityErr != nil {
-			panic(fmt.Errorf("fatal error while generating pinecone identity for pineconeManager defaults: %e", randomPineconeIdentityErr))
+			panic(fmt.Errorf("fatal error while generating pinecone identity for manager defaults: %e", randomPineconeIdentityErr))
 		}
 
-		defaults := [conf_option_count]any{
-			CONF_PINECONE_IDENTITY:    randomPineconeIdentity,
-			CONF_LOGGER:               log.New(io.Discard, "", 0),
-			CONF_INBOUND_ADDR:         ":0",
-			CONF_WEBSERVER_ADDR:       ":0",
-			CONF_WEBSERVER_DEBUG_PATH: "",
-			CONF_USE_MULTICAST:        false,
-			CONF_WRAPPED_PROTOS:       []string{},
-			CONF_STATIC_PEERS:         []string{},
-			CONF_WEBSERVER_HANDLERS:   map[string]http.Handler{},
+		defaults := configSnapshot{
+			pineconeIdentity:   randomPineconeIdentity,
+			logger:             log.New(io.Discard, "", 0),
+			inboundAddr:        ":0",
+			webserverAddr:      ":0",
+			webserverDebugPath: "",
+			useMulticast:       false,
+			staticPeers:        []string{},
+			webserverHandlers:  map[string]http.Handler{},
 		}
 
 		// Set default config values to ensure that the config is never
 		// in an unusable state and allow for sane options without setting
 		// everything manually.
-		pineconeManagerInstance.conf = defaults
+		managerInstance.conf.configSnapshot = defaults
 
 		// Init communication channels.
-		pineconeManagerInstance.reqExit = make(chan struct{})
-		pineconeManagerInstance.ackExit = make(chan struct{})
+		managerInstance.reqExit = make(chan struct{})
+		managerInstance.ackExit = make(chan struct{})
 	})
 
-	return pineconeManagerInstance
+	return managerInstance
 }

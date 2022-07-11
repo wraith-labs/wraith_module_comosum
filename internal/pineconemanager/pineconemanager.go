@@ -39,18 +39,24 @@ type manager struct {
 // Start the pinecone manager as configured. This blocks while the
 // manager is running but can be started in a goroutine.
 func (pm *manager) Start() {
+	// Reset startOnce when this function exits.
+	defer func() {
+		pm.startOnce = misc.CheckableOnce{}
+	}()
+
 	// Only execute this once at a time.
 	pm.startOnce.Do(func() {
 		// Acknowledge the exit request that caused the manager to exit.
 		// This MUST be the first defer as that means it gets executed last.
-		defer func(pm *manager) {
-			pm.ackExit <- struct{}{}
-		}(pm)
+		defer func() {
+			// Catch panics and re-raise panics as otherwise they would likely
+			// block on the channel send below.
+			if err := recover(); err != nil {
+				panic(err)
+			}
 
-		// Reset startOnce when this function exits.
-		defer func(pm *manager) {
-			pm.startOnce = misc.CheckableOnce{}
-		}(pm)
+			pm.ackExit <- struct{}{}
+		}()
 
 		// Grab a snapshot of the config (this ensures the
 		// config is never in an inconsistent state when values
@@ -199,13 +205,13 @@ func (pm *manager) Start() {
 
 // Stop the pinecone manager.
 func (pm *manager) Stop() {
+	// Reset stopOnce when this function exits.
+	defer func(pm *manager) {
+		pm.stopOnce = misc.CheckableOnce{}
+	}(pm)
+
 	// Only execute this once at a time.
 	pm.stopOnce.Do(func() {
-		// Reset stopOnce when this function exits.
-		defer func(pm *manager) {
-			pm.stopOnce = misc.CheckableOnce{}
-		}(pm)
-
 		// Only actually do anything if the manager is running, otherwise
 		// we'll block forever because nothing would read from the channel.
 		//
@@ -226,13 +232,13 @@ func (pm *manager) Stop() {
 
 // Restart the pinecone manager. Equivalent to calling Stop() and Start().
 func (pm *manager) Restart() {
+	// Reset restartOnce when this function exits.
+	defer func(pm *manager) {
+		pm.restartOnce = misc.CheckableOnce{}
+	}(pm)
+
 	// Only execute this once at a time.
 	pm.restartOnce.Do(func() {
-		// Reset restartOnce when this function exits.
-		defer func(pm *manager) {
-			pm.restartOnce = misc.CheckableOnce{}
-		}(pm)
-
 		pm.Stop()
 		pm.Start()
 	})

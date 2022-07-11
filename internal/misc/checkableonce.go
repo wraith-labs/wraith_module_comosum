@@ -114,19 +114,19 @@ func (co *CheckableOnce) Done() bool {
 }
 
 // True if Do() is currently in progress. False otherwise.
-func (o *CheckableOnce) Doing() bool {
+func (co *CheckableOnce) Doing() bool {
 	var locked bool
-	if locked = o.m.TryLock(); locked {
-		defer o.m.Unlock()
+	if locked = co.m.TryLock(); locked {
+		defer co.m.Unlock()
 	}
 	return !locked
 }
 
 // True if Do() was called. False otherwise.
-func (o *CheckableOnce) DoingOrDone() bool {
-	if o.m.TryLock() {
-		defer o.m.Unlock()
-		return atomic.LoadUint32(&o.done) == 1
+func (co *CheckableOnce) DoingOrDone() bool {
+	if co.m.TryLock() {
+		defer co.m.Unlock()
+		return atomic.LoadUint32(&co.done) == 1
 	}
 	return false
 }

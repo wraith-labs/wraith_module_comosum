@@ -89,6 +89,12 @@ func main() {
 	<-sigchan
 	fmt.Println("exit requested; exiting gracefully")
 
+	go func() {
+		<-sigchan
+		fmt.Println("exit re-requested; forcing")
+		os.Exit(1)
+	}()
+
 	pm.Stop()
 
 	os.Exit(0)

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pineconemanager"
@@ -67,6 +68,13 @@ func main() {
 	pm.SetPineconeIdentity(pineconeId)
 	if *c.logPinecone {
 		pm.SetLogger(log.Default())
+	}
+	pm.SetInboundAddr(*c.pineconeInboundTcpAddr)
+	pm.SetWebserverAddr(*c.pineconeInboundWebAddr)
+	pm.SetWebserverDebugPath(*c.pineconeDebugEndpoint)
+	pm.SetUseMulticast(*c.pineconeUseMulticast)
+	if *c.pineconeStaticPeers != "" {
+		pm.SetStaticPeers(strings.Split(*c.pineconeStaticPeers, ","))
 	}
 
 	//

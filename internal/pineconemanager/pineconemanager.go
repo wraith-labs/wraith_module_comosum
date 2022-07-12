@@ -49,7 +49,7 @@ func (pm *manager) Start() {
 		// Acknowledge the exit request that caused the manager to exit.
 		// This MUST be the first defer as that means it gets executed last.
 		defer func() {
-			// Catch panics and re-raise panics as otherwise they would likely
+			// Catch and re-raise panics as otherwise they could possibly
 			// block on the channel send below.
 			if err := recover(); err != nil {
 				panic(err)
@@ -92,7 +92,10 @@ func (pm *manager) Start() {
 		// Listen for inbound connections if a listener was configured.
 		if c.inboundAddr != "" {
 			wg.Add(1)
-			go func(ctx context.Context, wg sync.WaitGroup) {
+
+			go func(ctx context.Context, wg *sync.WaitGroup, pRouter *pineconeRouter.Router) {
+				defer wg.Done()
+
 				listenCfg := net.ListenConfig{}
 				listener, err := listenCfg.Listen(ctx, "tcp", c.inboundAddr)
 
@@ -102,10 +105,20 @@ func (pm *manager) Start() {
 				}
 
 				for ctx.Err() == nil {
-					// Accept incoming connections. In case of error, drop connection but
-					// otherwise ignore.
+					// Make sure the below accept call does not block past context cancellation
+					go func() {
+						<-ctx.Done()
+						// TODO: Do we want to handle this error?
+						listener.Close()
+					}()
+
+					// Accept incoming connections. In case of error, drop connection.
 					conn, err := listener.Accept()
 					if err != nil {
+						if conn != nil {
+							_ = conn.Close()
+						}
+
 						continue
 					}
 
@@ -118,11 +131,11 @@ func (pm *manager) Start() {
 					// If pinecone setup failed, drop the connection.
 					if err != nil {
 						conn.Close()
+
 						continue
 					}
 				}
-				wg.Done()
-			}(ctx, wg)
+			}(ctx, &wg, pRouter)
 		}
 
 		///////////////////////////////
@@ -196,7 +209,7 @@ func (pm *manager) Start() {
 		}
 		pManager.RemovePeers()
 		pQUIC.Close()
-		pRouter.Close()
+		//pRouter.Close()
 
 		// Wait for all the goroutines we started to exit.
 		wg.Wait()

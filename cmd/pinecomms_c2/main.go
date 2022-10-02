@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pineconemanager"
+	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 )
 
 const (
@@ -59,7 +59,7 @@ func main() {
 	pineconeId := ed25519.PrivateKey(pineconeIdBytes)
 
 	// Get a struct for managing pinecone connections
-	pm := pineconemanager.GetInstance()
+	pm := pmanager.GetInstance()
 
 	//
 	// Configure pinecone manager
@@ -88,6 +88,20 @@ func main() {
 	// Main body
 	//
 
+	// Define routes which should be accessible over pinecone.
+	/*routes := make(map[string]http.HandlerFunc)
+
+	for _, route := range []proto.Route{
+		proto.ROUTE_PING,
+		proto.ROUTE_SEND,
+	} {
+		routeString, routeHandler := route.Handler(func() {})
+		routes[routeString] = routeHandler
+	}
+
+	pm.SetPineconeWebserverHandlers(routes)*/
+
+	// Start pinecone.
 	go pm.Start()
 
 	//

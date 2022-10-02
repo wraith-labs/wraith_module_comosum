@@ -1,4 +1,4 @@
-package pineconemanager
+package pmanager
 
 import (
 	"context"
@@ -28,9 +28,11 @@ type manager struct {
 	stopOnce    misc.CheckableOnce
 	restartOnce misc.CheckableOnce
 
-	// Communication channels.
+	// Internal communication channels.
 	reqExit chan struct{}
 	ackExit chan struct{}
+	tx      chan struct{}
+	rx      chan struct{}
 
 	// A struct of config options for the manager with a lock to make it thread-safe.
 	conf config
@@ -74,22 +76,43 @@ func (pm *manager) Start() {
 		//
 
 		// Set up pinecone components.
-		pRouter := pineconeRouter.NewRouter(c.logger, c.pineconeIdentity, false)
+		pRouter := pineconeRouter.NewRouter(c.logger, c.pineconeIdentity)
 		pQUIC := pineconeSessions.NewSessions(c.logger, pRouter, []string{"wraith"})
 		pMulticast := pineconeMulticast.NewMulticast(c.logger, pRouter)
 		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
 
-		if c.useMulticast {
-			wg.Add(1)
-			pMulticast.Start()
+		// Set up pinecone HTTP paths.
+		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
+		pMux.PathPrefix("/ptest").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			println("HELLO")
+			w.WriteHeader(200)
+		})
+
+		pHTTP := pQUIC.Protocol("wraith").HTTP()
+		pHTTP.Mux().Handle("/ptest", pMux)
+
+		// Pinecone HTTP server.
+		pineconeHttpServer := http.Server{
+			Addr:         ":0",
+			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  60 * time.Second,
+			BaseContext: func(_ net.Listener) context.Context {
+				return ctx
+			},
+			Handler: pMux,
 		}
 
-		// Connect to any static peers we were given.
-		for _, peer := range c.staticPeers {
-			pManager.AddPeer(peer)
-		}
+		// Start pinecone HTTP server in goroutine.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 
-		// Listen for inbound connections if a listener was configured.
+			pineconeHttpServer.Serve(pQUIC.Protocol("wraith"))
+		}()
+
+		// Listen for inbound connections if a TCP listener was configured.
 		if c.inboundAddr != "" {
 			wg.Add(1)
 
@@ -105,7 +128,7 @@ func (pm *manager) Start() {
 				}
 
 				for ctx.Err() == nil {
-					// Make sure the below accept call does not block past context cancellation
+					// Make sure the below accept call does not block past context cancellation.
 					go func() {
 						<-ctx.Done()
 						// TODO: Do we want to handle this error?
@@ -138,71 +161,101 @@ func (pm *manager) Start() {
 			}(ctx, &wg, pRouter)
 		}
 
-		///////////////////////////////
+		// Set up non-pinecone HTTP server.
+		httpRouter := mux.NewRouter().SkipClean(true).UseEncodedPath()
+
+		// Disable CORS.
 		wsUpgrader := websocket.Upgrader{
 			CheckOrigin: func(_ *http.Request) bool {
 				return true
 			},
 		}
-		httpRouter := mux.NewRouter().SkipClean(true).UseEncodedPath()
+
+		// Set up WebSocket peering route.
 		httpRouter.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 			c, err := wsUpgrader.Upgrade(w, r, nil)
 			if err != nil {
 				return
 			}
+
 			conn := wrapWebSocketConn(c)
+
 			if _, err = pRouter.Connect(
 				conn,
 				pineconeRouter.ConnectionZone("websocket"),
 				pineconeRouter.ConnectionPeerType(pineconeRouter.PeerTypeRemote),
 			); err != nil {
-				// TODO: ?
+				return
 			}
 		})
+
+		// If a webserver debug path is specified, set up pinecone manhole at that path.
 		if c.webserverDebugPath != "" {
 			httpRouter.HandleFunc(c.webserverDebugPath, pRouter.ManholeHandler)
 		}
 
-		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
-		pMux.PathPrefix("/ptest").HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "HelloWorld Function") })
+		// If additional handlers are configured for the webserver, add them.
+		for route, handler := range c.webserverHandlers {
+			httpRouter.HandleFunc(route, handler)
+		}
 
-		pHTTP := pQUIC.Protocol("wraith").HTTP()
-		pHTTP.Mux().Handle("/ptest", pMux)
-
-		// Build both ends of a HTTP multiplex.
+		// Non-pinecone HTTP server.
 		httpServer := http.Server{
-			Addr:         ":0",
+			Addr:         c.webserverAddr,
 			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
 			BaseContext: func(_ net.Listener) context.Context {
-				return context.Background()
+				return ctx
 			},
-			Handler: pMux,
+			Handler: httpRouter,
 		}
 
+		// Start non-pinecone HTTP server in goroutine.
+		wg.Add(1)
 		go func() {
-			httpServer.Serve(pQUIC.Protocol("wraith"))
+			defer wg.Done()
+
+			httpServer.ListenAndServe()
 		}()
-		go func() {
-			http.ListenAndServe(c.webserverAddr, httpRouter)
-		}()
-		///////////////////////////////
+
+		// Set up multicast discovery if enabled.
+		if c.useMulticast {
+			wg.Add(1)
+			pMulticast.Start()
+		}
+
+		// Connect to any static peers we were given.
+		for _, peer := range c.staticPeers {
+			pManager.AddPeer(peer)
+			/*resp, err := pHTTP.Client().Get("http://3d5054f46a6cbb6526a9e892151714e22ade8ff9e3a60fe534d991428936bbdf/ptest")
+			if err != nil {
+				fmt.Print(err)
+			} else {
+				var respbytes []byte
+				resp.Body.Read(respbytes)
+				fmt.Printf("%v\n%v\n", resp.StatusCode, respbytes)
+			}*/
+		}
 
 		// Wait until exit is requested.
-	mainloop:
-		for {
-			select {
-			case <-pm.reqExit:
-				break mainloop
-			}
-		}
+		<-pm.reqExit
 
-		// Kill all goroutines we spawned.
+		// Kill all goroutines we spawned which have our context.
 		ctxCancel()
 
-		// Tear down pinecone.
+		// Tear down non-pinecone HTTP server.
+		httpShutdownTimeoutCtx, httpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
+		httpServer.Shutdown(httpShutdownTimeoutCtx)
+		httpShutdownTimeoutCtxCancel()
+
+		// Tear down pinecone HTTP server.
+		phttpShutdownTimeoutCtx, phttpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
+		pineconeHttpServer.Shutdown(phttpShutdownTimeoutCtx)
+		phttpShutdownTimeoutCtxCancel()
+
+		// Tear down pinecone components.
 		if c.useMulticast {
 			pMulticast.Stop()
 			wg.Done()
@@ -257,6 +310,22 @@ func (pm *manager) Restart() {
 	})
 }
 
+// Send a given packet to a specific peer.
+func (pm *manager) Send(peer string, packet packetOuter) error {
+	return nil
+}
+
+// Ping a specific peer.
+func (pm *manager) Ping(peer string) error {
+	return nil
+}
+
+// Poll for incoming packets. Blocks until either a packet is received or
+// the provided context expires.
+func (pm *manager) Poll(ctx context.Context) (packetInner, error) {
+	return packetInner{}, nil
+}
+
 // Check whether the pinecone manager is currently running.
 func (pm *manager) IsRunning() bool {
 	return pm.startOnce.Doing()
@@ -290,7 +359,7 @@ func GetInstance() *manager {
 			webserverDebugPath: "",
 			useMulticast:       false,
 			staticPeers:        []string{},
-			webserverHandlers:  map[string]http.Handler{},
+			webserverHandlers:  map[string]http.HandlerFunc{},
 		}
 
 		// Set default config values to ensure that the config is never

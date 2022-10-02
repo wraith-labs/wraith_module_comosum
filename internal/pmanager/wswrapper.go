@@ -1,4 +1,4 @@
-package pineconemanager
+package pmanager
 
 /*
 

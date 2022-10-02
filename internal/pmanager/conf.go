@@ -1,4 +1,4 @@
-package pineconemanager
+package pmanager
 
 import (
 	"crypto/ed25519"
@@ -47,7 +47,10 @@ type configSnapshot struct {
 	// efficiency, to allow nodes which also need to run a regular webserver to
 	// use the one used by pinecone for websockets. This saves allocating another
 	// port and other system resources.
-	webserverHandlers map[string]http.Handler
+	webserverHandlers map[string]http.HandlerFunc
+
+	// Handlers exposed over pinecone.
+	pineconeWebserverHandlers map[string]http.HandlerFunc
 }
 
 // This struct represents the configuration for a pinecone manager. Values can be
@@ -144,10 +147,16 @@ func (pm *manager) SetStaticPeers(u []string) {
 	pm.conf.staticPeers = u
 }
 
-func (pm *manager) SetWebserverHandlers(u map[string]http.Handler) {
+func (pm *manager) SetWebserverHandlers(u map[string]http.HandlerFunc) {
 	defer pm.conf.autolock()()
 
 	pm.conf.webserverHandlers = u
+}
+
+func (pm *manager) SetPineconeWebserverHandlers(u map[string]http.HandlerFunc) {
+	defer pm.conf.autolock()()
+
+	pm.conf.pineconeWebserverHandlers = u
 }
 
 //
@@ -196,8 +205,14 @@ func (pm *manager) GetStaticPeers() []string {
 	return pm.conf.staticPeers
 }
 
-func (pm *manager) GetWebserverHandlers() map[string]http.Handler {
+func (pm *manager) GetWebserverHandlers() map[string]http.HandlerFunc {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.webserverHandlers
+}
+
+func (pm *manager) GetPineconeWebserverHandlers() map[string]http.HandlerFunc {
+	defer pm.conf.autorlock()()
+
+	return pm.conf.pineconeWebserverHandlers
 }

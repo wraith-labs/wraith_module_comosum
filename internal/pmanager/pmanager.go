@@ -9,11 +9,14 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/misc"
+	"github.com/cristalhq/jwt/v4"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"
@@ -31,8 +34,8 @@ type manager struct {
 	// Internal communication channels.
 	reqExit chan struct{}
 	ackExit chan struct{}
-	tx      chan struct{}
-	rx      chan struct{}
+	txq     chan packet
+	rxq     chan packet
 
 	// A struct of config options for the manager with a lock to make it thread-safe.
 	conf config
@@ -48,17 +51,9 @@ func (pm *manager) Start() {
 
 	// Only execute this once at a time.
 	pm.startOnce.Do(func() {
-		// Acknowledge the exit request that caused the manager to exit.
-		// This MUST be the first defer as that means it gets executed last.
-		defer func() {
-			// Catch and re-raise panics as otherwise they could possibly
-			// block on the channel send below.
-			if err := recover(); err != nil {
-				panic(err)
-			}
-
-			pm.ackExit <- struct{}{}
-		}()
+		// Init some internal communication channels.
+		managerInstance.reqExit = make(chan struct{})
+		managerInstance.ackExit = make(chan struct{})
 
 		// Grab a snapshot of the config (this ensures the
 		// config is never in an inconsistent state when values
@@ -72,7 +67,7 @@ func (pm *manager) Start() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		//
-		// Main pinecone stuff
+		// Main pinecone stuff.
 		//
 
 		// Set up pinecone components.
@@ -239,6 +234,52 @@ func (pm *manager) Start() {
 			}*/
 		}
 
+		// Manage tx queue.
+		wg.Add(1)
+		go func(ctx context.Context) {
+			defer wg.Done()
+
+			// Prepare JWT signing helpers.
+			signer, err := jwt.NewSignerEdDSA(c.pineconeIdentity)
+			if err != nil {
+				panic(err)
+			}
+
+			builder := jwt.NewBuilder(signer)
+
+			for {
+				select {
+				case p := <-pm.txq:
+
+					// Build a JWT with the payload from the queue element.
+					claims := map[string]any{}
+					data, err := builder.Build(claims)
+					if err != nil {
+						pm.conf.logger.Printf("failed to build token for tx queue element due to error: %e", err)
+						continue
+					}
+
+					// Set up request to peer.
+					req := http.Request{
+						Method: p.Method,
+						URL: &url.URL{
+							Scheme: "http",
+							Host:   p.Peer,
+							Path:   "/" + fmt.Sprint(p.Route),
+						},
+						Cancel: ctx.Done(),
+						Body:   io.NopCloser(strings.NewReader(data.String())),
+					}
+
+					// Send request to peer.
+					pHTTP.Client().Do(&req)
+				case <-ctx.Done():
+					// If the context is closed, exit.
+					return
+				}
+			}
+		}(ctx)
+
 		// Wait until exit is requested.
 		<-pm.reqExit
 
@@ -266,6 +307,9 @@ func (pm *manager) Start() {
 
 		// Wait for all the goroutines we started to exit.
 		wg.Wait()
+
+		// Acknowledge the exit request.
+		close(pm.ackExit)
 	})
 }
 
@@ -288,7 +332,7 @@ func (pm *manager) Stop() {
 		// function can run at a time. The guarantee could be made stronger
 		// with locks but this isn't really worth the added complexity.
 		if pm.IsRunning() {
-			pm.reqExit <- struct{}{}
+			close(pm.reqExit)
 
 			// Wait for the exit request to be acknowledged.
 			<-pm.ackExit
@@ -311,19 +355,28 @@ func (pm *manager) Restart() {
 }
 
 // Send a given packet to a specific peer.
-func (pm *manager) Send(peer string, packet packetOuter) error {
-	return nil
+func (pm *manager) Send(ctx context.Context, p packet) error {
+	select {
+	case pm.txq <- p:
+		return nil
+	case <-pm.ackExit:
+		return fmt.Errorf("manager exited while trying to send packet")
+	case <-ctx.Done():
+		return fmt.Errorf("context cancelled while trying to send packet (%e)", ctx.Err())
+	}
 }
 
-// Ping a specific peer.
-func (pm *manager) Ping(peer string) error {
-	return nil
-}
-
-// Poll for incoming packets. Blocks until either a packet is received or
+// Receive incoming packets. Blocks until either a packet is received or
 // the provided context expires.
-func (pm *manager) Poll(ctx context.Context) (packetInner, error) {
-	return packetInner{}, nil
+func (pm *manager) Recv(ctx context.Context) (packet, error) {
+	select {
+	case p := <-pm.rxq:
+		return p, nil
+	case <-pm.ackExit:
+		return packet{}, fmt.Errorf("manager exited while trying to send packet")
+	case <-ctx.Done():
+		return packet{}, fmt.Errorf("context cancelled while trying to receive packet (%e)", ctx.Err())
+	}
 }
 
 // Check whether the pinecone manager is currently running.
@@ -368,8 +421,8 @@ func GetInstance() *manager {
 		managerInstance.conf.configSnapshot = defaults
 
 		// Init communication channels.
-		managerInstance.reqExit = make(chan struct{})
-		managerInstance.ackExit = make(chan struct{})
+		managerInstance.txq = make(chan packet)
+		managerInstance.rxq = make(chan packet)
 	})
 
 	return managerInstance

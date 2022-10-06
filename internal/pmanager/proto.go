@@ -31,24 +31,24 @@ const (
 	ROUTE_SEND
 )
 
-type packetOuter struct {
-	// The pinecone peer this packet came from or is going to.
-	Peer string
-
-	// The HTTP route this packet was received on or is being sent to.
-	Route route
-
-	// The HTTP method this packet was received or is to be sent with.
-	Method string
-
-	// The data included with the packet encoded as pmanager-flavoured JWT.
-	Data string
-}
-
-type packetInner struct {
+type packetData struct {
 	// Wraith shm cells to read from.
 	R []string
 
 	// Wraith shm cells to write to and data to write.
 	W map[string]any
+}
+
+type packet struct {
+	// The pinecone peer this packet came from or is going to.
+	Peer string
+
+	// The HTTP method this packet was received or is to be sent with.
+	Method string
+
+	// The HTTP route this packet was received on or is being sent to.
+	Route route
+
+	// The data included with the packet encoded as pmanager-flavoured JWT.
+	Data packetData
 }

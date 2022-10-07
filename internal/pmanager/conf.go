@@ -48,9 +48,6 @@ type configSnapshot struct {
 	// use the one used by pinecone for websockets. This saves allocating another
 	// port and other system resources.
 	webserverHandlers map[string]http.HandlerFunc
-
-	// Handlers exposed over pinecone.
-	pineconeWebserverHandlers map[string]http.HandlerFunc
 }
 
 // This struct represents the configuration for a pinecone manager. Values can be
@@ -153,12 +150,6 @@ func (pm *manager) SetWebserverHandlers(u map[string]http.HandlerFunc) {
 	pm.conf.webserverHandlers = u
 }
 
-func (pm *manager) SetPineconeWebserverHandlers(u map[string]http.HandlerFunc) {
-	defer pm.conf.autolock()()
-
-	pm.conf.pineconeWebserverHandlers = u
-}
-
 //
 // Getters
 //
@@ -209,10 +200,4 @@ func (pm *manager) GetWebserverHandlers() map[string]http.HandlerFunc {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.webserverHandlers
-}
-
-func (pm *manager) GetPineconeWebserverHandlers() map[string]http.HandlerFunc {
-	defer pm.conf.autorlock()()
-
-	return pm.conf.pineconeWebserverHandlers
 }

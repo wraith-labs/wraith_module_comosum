@@ -1,9 +1,11 @@
 package pmanager
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -16,7 +18,6 @@ import (
 	"time"
 
 	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/misc"
-	"github.com/cristalhq/jwt/v4"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"
@@ -76,15 +77,41 @@ func (pm *manager) Start() {
 		pMulticast := pineconeMulticast.NewMulticast(c.logger, pRouter)
 		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
 
-		// Set up pinecone HTTP paths.
+		// Set up rx queue handling.
 		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
-		pMux.PathPrefix("/ptest").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			println("HELLO")
+		pMux.PathPrefix(ROUTE_PREFIX).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Read the payload from request body.
+			payload, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(400)
+				return
+			}
+
+			// Try to JSON parse the payload.
+			data := packetData{}
+			err = json.Unmarshal(payload, &data)
+			if err != nil {
+				w.WriteHeader(400)
+				return
+			}
+
+			// Fill out packet metadata.
+			p := packet{
+				Peer:   r.RemoteAddr,
+				Method: r.Method,
+				Route:  strings.TrimPrefix(r.URL.EscapedPath(), ROUTE_PREFIX),
+				Data:   data,
+			}
+
+			// Respond so the requester doesn't have to wait for the queue to empty.
 			w.WriteHeader(200)
+
+			// Add to the queue.
+			pm.rxq <- p
 		})
 
 		pHTTP := pQUIC.Protocol("wraith").HTTP()
-		pHTTP.Mux().Handle("/ptest", pMux)
+		pHTTP.Mux().Handle("/", pMux)
 
 		// Pinecone HTTP server.
 		pineconeHttpServer := http.Server{
@@ -224,14 +251,6 @@ func (pm *manager) Start() {
 		// Connect to any static peers we were given.
 		for _, peer := range c.staticPeers {
 			pManager.AddPeer(peer)
-			/*resp, err := pHTTP.Client().Get("http://3d5054f46a6cbb6526a9e892151714e22ade8ff9e3a60fe534d991428936bbdf/ptest")
-			if err != nil {
-				fmt.Print(err)
-			} else {
-				var respbytes []byte
-				resp.Body.Read(respbytes)
-				fmt.Printf("%v\n%v\n", resp.StatusCode, respbytes)
-			}*/
 		}
 
 		// Manage tx queue.
@@ -239,23 +258,14 @@ func (pm *manager) Start() {
 		go func(ctx context.Context) {
 			defer wg.Done()
 
-			// Prepare JWT signing helpers.
-			signer, err := jwt.NewSignerEdDSA(c.pineconeIdentity)
-			if err != nil {
-				panic(err)
-			}
-
-			builder := jwt.NewBuilder(signer)
-
 			for {
 				select {
 				case p := <-pm.txq:
 
-					// Build a JWT with the payload from the queue element.
-					claims := map[string]any{}
-					data, err := builder.Build(claims)
+					// Serialize the payload from the queue element.
+					payload, err := json.Marshal(p.Data)
 					if err != nil {
-						pm.conf.logger.Printf("failed to build token for tx queue element due to error: %e", err)
+						pm.conf.logger.Printf("failed to serialize tx queue element due to error: %e", err)
 						continue
 					}
 
@@ -265,14 +275,15 @@ func (pm *manager) Start() {
 						URL: &url.URL{
 							Scheme: "http",
 							Host:   p.Peer,
-							Path:   "/" + fmt.Sprint(p.Route),
+							Path:   ROUTE_PREFIX + p.Route,
 						},
 						Cancel: ctx.Done(),
-						Body:   io.NopCloser(strings.NewReader(data.String())),
+						Body:   io.NopCloser(bytes.NewReader(payload)),
 					}
 
 					// Send request to peer.
 					pHTTP.Client().Do(&req)
+
 				case <-ctx.Done():
 					// If the context is closed, exit.
 					return

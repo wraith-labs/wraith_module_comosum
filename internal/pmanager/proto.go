@@ -9,7 +9,7 @@ const (
 	CURRENT_PROTO = "james"
 
 	// The prefix for all Wraith PineComms HTTP routes.
-	ROUTE_PREFIX = "wpc"
+	ROUTE_PREFIX = "/_wpc/" + CURRENT_PROTO + "/"
 )
 
 /*
@@ -24,11 +24,9 @@ The HTTP part of the protocol is extremely simple; only two routes are provided:
 
 */
 
-type route int
-
 const (
-	ROUTE_PING route = iota
-	ROUTE_SEND
+	ROUTE_PING = "ping"
+	ROUTE_SEND = "send"
 )
 
 type packetData struct {
@@ -46,8 +44,8 @@ type packet struct {
 	// The HTTP method this packet was received or is to be sent with.
 	Method string
 
-	// The HTTP route this packet was received on or is being sent to.
-	Route route
+	// The HTTP route this packet was received on or is being sent to (excluding prefix).
+	Route string
 
 	// The data included with the packet encoded as pmanager-flavoured JWT.
 	Data packetData

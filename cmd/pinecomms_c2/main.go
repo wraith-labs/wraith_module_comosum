@@ -2,10 +2,13 @@ package main
 
 import (
 	"crypto/ed25519"
+	"embed"
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -13,6 +16,9 @@ import (
 
 	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 )
+
+//go:embed ui
+var ui embed.FS
 
 const (
 	DEFAULT_PANEL_LISTEN_ADDR  = "127.0.0.1:48080"
@@ -88,18 +94,14 @@ func main() {
 	// Main body
 	//
 
-	// Define routes which should be accessible over pinecone.
-	/*routes := make(map[string]http.HandlerFunc)
-
-	for _, route := range []proto.Route{
-		proto.ROUTE_PING,
-		proto.ROUTE_SEND,
-	} {
-		routeString, routeHandler := route.Handler(func() {})
-		routes[routeString] = routeHandler
+	// Use pmanager non-pinecone webserver to host web UI and an API to communicate with it.
+	ui, err := fs.Sub(ui, "ui")
+	if err != nil {
+		panic(err)
 	}
-
-	pm.SetPineconeWebserverHandlers(routes)*/
+	pm.SetWebserverHandlers(map[string]http.Handler{
+		"/": http.FileServer(http.FS(ui)),
+	})
 
 	// Start pinecone.
 	go pm.Start()

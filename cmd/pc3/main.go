@@ -101,6 +101,9 @@ func main() {
 	}
 	pm.SetWebserverHandlers(map[string]http.Handler{
 		"/": http.FileServer(http.FS(ui)),
+		"/api/": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(418)
+		}),
 	})
 
 	// Start pinecone.

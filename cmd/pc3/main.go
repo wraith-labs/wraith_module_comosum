@@ -4,13 +4,15 @@ import (
 	"crypto/ed25519"
 	"embed"
 	"encoding/hex"
-	"flag"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 
@@ -20,78 +22,61 @@ import (
 //go:embed ui/dist/*
 var ui embed.FS
 
-const (
-	DEFAULT_PANEL_LISTEN_ADDR  = "127.0.0.1:48080"
-	DEFAULT_PANEL_ACCESS_TOKEN = "wraith!"
-)
-
 func main() {
-	// Create a struct to hold any config values
-	var c Config
-
 	//
-	// Define and parse command-line flags
+	// Create a struct to hold any config values.
 	//
 
-	c.panelListenAddr = flag.String("panelAddr", DEFAULT_PANEL_LISTEN_ADDR, "the address on which the control panel should listen for connections")
-	c.panelAccessToken = flag.String("panelToken", DEFAULT_PANEL_ACCESS_TOKEN, "the token needed to access the control panel")
-	c.pineconeId = flag.String("pineconeId", "", "private key to use as identity on the pinecone network")
-	c.logPinecone = flag.Bool("logPinecone", false, "whether to print pinecone's internal logs to stdout")
-	c.pineconeInboundTcpAddr = flag.String("inboundTcpAddr", "", "the address to listen for inbound pinecone connections on")
-	c.pineconeInboundWebAddr = flag.String("inboundWebAddr", "", "the address to listen for inbound HTTP connections on (allows pinecone over websocket and pinecone debug endpoint if enabled)")
-	c.pineconeDebugEndpoint = flag.String("pineconeDebugEndpoint", "", "the HTTP path of the pinecone debug endpoint on the pinecone webserver (omit to disable)")
-	c.pineconeUseMulticast = flag.Bool("useMulticast", false, "whether to use multicast to discover pinecone peers on the local network")
-	c.pineconeStaticPeers = flag.String("staticPeers", "", "comma-delimeted list of static peers to connect to")
-
-	flag.Parse()
+	c := Config{}
+	c.Setup()
 
 	//
-	// Validate the config
+	// Validate the config.
 	//
 
-	if *c.pineconeId == "" {
+	if c.pineconeId == "" {
 		fmt.Println("no pineconeId was specified; cannot continue")
 		os.Exit(1)
 	}
-	if *c.pineconeInboundTcpAddr == "" && *c.pineconeInboundWebAddr == "" && !*c.pineconeUseMulticast && *c.pineconeStaticPeers == "" {
+	if c.pineconeInboundTcpAddr == "" && c.pineconeInboundWebAddr == "" && !c.pineconeUseMulticast && c.pineconeStaticPeers == "" {
 		fmt.Println("no way for peers to connect was specified; cannot continue")
 		os.Exit(1)
 	}
-	pineconeIdBytes, err := hex.DecodeString(*c.pineconeId)
+	pineconeIdBytes, err := hex.DecodeString(c.pineconeId)
 	if err != nil {
 		fmt.Println("provided pineconeId was not a hex-encoded string; cannot continue")
 		os.Exit(1)
 	}
 	pineconeId := ed25519.PrivateKey(pineconeIdBytes)
 
-	// Get a struct for managing pinecone connections
+	// Get a struct for managing pinecone connections.
 	pm := pmanager.GetInstance()
 
 	//
-	// Configure pinecone manager
+	// Configure pinecone manager.
 	//
 
 	pm.SetPineconeIdentity(pineconeId)
-	if *c.logPinecone {
+	if c.logPinecone {
 		pm.SetLogger(log.Default())
 	}
-	pm.SetInboundAddr(*c.pineconeInboundTcpAddr)
-	pm.SetWebserverAddr(*c.pineconeInboundWebAddr)
-	pm.SetWebserverDebugPath(*c.pineconeDebugEndpoint)
-	pm.SetUseMulticast(*c.pineconeUseMulticast)
-	if *c.pineconeStaticPeers != "" {
-		pm.SetStaticPeers(strings.Split(*c.pineconeStaticPeers, ","))
+	pm.SetInboundAddr(c.pineconeInboundTcpAddr)
+	pm.SetWebserverAddr(c.pineconeInboundWebAddr)
+	pm.SetWebserverDebugPath(c.pineconeDebugEndpoint)
+	pm.SetUseMulticast(c.pineconeUseMulticast)
+	if c.pineconeStaticPeers != "" {
+		pm.SetStaticPeers(strings.Split(c.pineconeStaticPeers, ","))
 	}
 
 	//
-	// Configure signal handler for clean exit
+	// Configure signal handler for clean exit.
 	//
 
 	sigchan := make(chan os.Signal, 2)
 	signal.Notify(sigchan, syscall.SIGTERM, syscall.SIGINT)
 
 	//
-	// Main body
+	// Main body.
 	//
 
 	// Use pmanager non-pinecone webserver to host web UI and an API to communicate with it.
@@ -102,7 +87,61 @@ func main() {
 
 	pm.SetWebserverHandlers(map[string]http.Handler{
 		"/X/": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(418)
+			path := strings.TrimPrefix(r.URL.EscapedPath(), "/X/")
+
+			switch path {
+			case "about":
+				// Require auth.
+				if !StatusInGroup(AuthStatus(r), []authStatus{
+					AUTH_STATUS_A, AUTH_STATUS_V,
+				}) {
+					w.WriteHeader(401)
+					return
+				}
+
+				// Collect necessary information.
+				buildinfo, _ := debug.ReadBuildInfo()
+
+				// Build response data.
+				data, err := json.Marshal(map[string]any{
+					"build": buildinfo,
+				})
+				if err != nil {
+					panic(fmt.Sprintf("error while generating `about` API response: %v", err))
+				}
+
+				// Send!
+				w.Write(data)
+			case "auth":
+				// Make sure we haven't exceeded the limit for failed logins.
+				if c.attemptsUntilLockout.Load() <= 0 {
+					w.WriteHeader(418)
+					return
+				}
+
+				// Get the credential from the request body.
+				intoken, err := io.ReadAll(r.Body)
+				if err != nil {
+					w.WriteHeader(500)
+					return
+				}
+
+				// Validate credential.
+				outtoken, ok := TradeTokens(c, intoken)
+				if !ok {
+					c.attemptsUntilLockout.Add(-1)
+					w.WriteHeader(401)
+					return
+				}
+
+				// Reset failed attempts counter on successful login.
+				c.attemptsUntilLockout.Store(STARTING_ATTEMPTS_UNTIL_LOCKOUT)
+
+				w.Write(outtoken)
+			default:
+				// If someone makes an API call we don't recognise, we're a teapot.
+				w.WriteHeader(418)
+			}
 		}),
 		"/": http.FileServer(http.FS(ui)),
 	})
@@ -111,7 +150,7 @@ func main() {
 	go pm.Start()
 
 	//
-	// On exit
+	// On exit.
 	//
 
 	<-sigchan

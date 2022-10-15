@@ -3,6 +3,8 @@ module git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms
 go 1.19
 
 require (
+	github.com/cristalhq/jwt/v4 v4.0.2
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/matrix-org/pinecone v0.0.0-20221007145426-3adc85477dd3

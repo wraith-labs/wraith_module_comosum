@@ -218,7 +218,7 @@ func (pm *manager) Start() {
 
 		// If additional handlers are configured for the webserver, add them.
 		for route, handler := range c.webserverHandlers {
-			httpRouter.Handle(route, handler)
+			httpRouter.PathPrefix(route).Handler(handler)
 		}
 
 		// Non-pinecone HTTP server.

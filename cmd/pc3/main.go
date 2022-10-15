@@ -17,7 +17,7 @@ import (
 	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 )
 
-//go:embed ui/dist
+//go:embed ui/dist/*
 var ui embed.FS
 
 const (
@@ -95,15 +95,16 @@ func main() {
 	//
 
 	// Use pmanager non-pinecone webserver to host web UI and an API to communicate with it.
-	ui, err := fs.Sub(ui, "ui")
+	ui, err := fs.Sub(ui, "ui/dist")
 	if err != nil {
 		panic(err)
 	}
+
 	pm.SetWebserverHandlers(map[string]http.Handler{
-		"/": http.FileServer(http.FS(ui)),
-		"/api/": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		"/X/": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(418)
 		}),
+		"/": http.FileServer(http.FS(ui)),
 	})
 
 	// Start pinecone.

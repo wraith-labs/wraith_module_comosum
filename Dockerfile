@@ -26,4 +26,9 @@ FROM alpine
 
 COPY --from=builder /build/pc3 /usr/bin/pc3
 
+ENV APP_ADMIN_USERNAME=wraithadmin
+ENV APP_ADMIN_PASSWORD=wr417h4dm1n
+ENV APP_VIEW_USERNAME=wraithview
+ENV APP_VIEW_PASSWORD=wr417hv13w
+
 ENTRYPOINT ["/usr/bin/pc3"]

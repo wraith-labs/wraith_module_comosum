@@ -11,18 +11,9 @@
                     </div>
                 
                     <div class="w-full md:w-10 mx-auto">
-                        <label for="email1" class="block text-900 text-xl font-medium mb-2">Email</label>
-                        <InputText id="email1" v-model="email" type="text" class="w-full mb-3" placeholder="Email" style="padding:1rem;" />
-                
-                        <label for="password1" class="block text-900 font-medium text-xl mb-2">Password</label>
-                        <Password id="password1" v-model="password" placeholder="Password" :toggleMask="true" class="w-full mb-3" inputClass="w-full" inputStyle="padding:1rem"></Password>
-                
-                        <div class="flex align-items-center justify-content-between mb-5">
-                            <div class="flex align-items-center">
-                                <Checkbox id="rememberme1" v-model="remember" :binary="true" class="mr-2"></Checkbox>
-                                <label for="rememberme1">Remember me</label>
-                            </div>
-                        </div>
+                        <label for="token" class="block text-900 font-medium text-xl mb-2">Token</label>
+                        <Password id="token" v-model="token" placeholder="Token" :toggleMask="true" class="w-full mb-3" inputClass="w-full" inputStyle="padding:1rem"></Password>
+
                         <Button label="Sign In" class="w-full p-3 text-xl"></button>
                     </div>
                 </div>
@@ -35,8 +26,7 @@
 export default {
     data() {
         return {
-            email: '',
-            password: '',
+            token: '',
             remember: false
         }
     }

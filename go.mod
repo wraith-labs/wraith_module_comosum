@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/matrix-org/pinecone v0.0.0-20221003135901-d05e7fbb5d8f
+	github.com/matrix-org/pinecone v0.0.0-20221007145426-3adc85477dd3
 )
 
 require (

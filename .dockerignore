@@ -1,0 +1,8 @@
+**/node_modules
+**/.dockerignore
+**/Dockerfile
+**/.git
+**/.gitignore
+/cmd/pc3/ui/dist
+LICENSE
+README.md

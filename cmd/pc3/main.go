@@ -17,7 +17,7 @@ import (
 	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 )
 
-//go:embed ui
+//go:embed ui/dist
 var ui embed.FS
 
 const (

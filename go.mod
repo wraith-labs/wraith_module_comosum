@@ -12,22 +12,20 @@ require (
 
 require (
 	github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
+	github.com/google/pprof v0.0.0-20221010195024-131d412537ea // indirect
 	github.com/klauspost/compress v1.15.11 // indirect
-	github.com/lucas-clemente/quic-go v0.29.2 // indirect
+	github.com/lucas-clemente/quic-go v0.30.0 // indirect
 	github.com/marten-seemann/qtls-go1-18 v0.1.3 // indirect
 	github.com/marten-seemann/qtls-go1-19 v0.1.1 // indirect
-	github.com/nxadm/tail v1.4.8 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
+	github.com/onsi/ginkgo/v2 v2.4.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	golang.org/x/crypto v0.0.0-20221012134737-56aed061732a // indirect
-	golang.org/x/exp v0.0.0-20221012211006-4de253d81b95 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
-	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43 // indirect
-	golang.org/x/tools v0.1.12 // indirect
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/exp v0.0.0-20221023144134-a1e5550cf13e // indirect
+	golang.org/x/mod v0.6.0 // indirect
+	golang.org/x/net v0.1.0 // indirect
+	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/tools v0.2.0 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )

@@ -177,7 +177,7 @@
 
 <script>
 import {FilterMatchMode} from 'primevue/api';
-import ProductService from '../../service/Service';
+import ProductService from '../../api/api';
 
 export default {
 	data() {

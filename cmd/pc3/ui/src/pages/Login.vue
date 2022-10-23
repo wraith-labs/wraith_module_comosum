@@ -23,6 +23,8 @@
 </template>
 
 <script>
+import API from '../api/api';
+
 export default {
     data() {
         return {

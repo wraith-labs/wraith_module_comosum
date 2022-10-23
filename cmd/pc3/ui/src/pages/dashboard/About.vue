@@ -10,7 +10,40 @@
 </template>
 
 <script>
-export default {
+import API from '../../api/api';
 
+export default {
+	data() {
+		return {
+			products: null,
+			productDialog: false,
+			deleteProductDialog: false,
+			deleteProductsDialog: false,
+			product: {},
+			selectedProducts: null,
+			filters: {},
+			submitted: false,
+			statuses: [
+				{label: 'INSTOCK', value: 'instock'},
+				{label: 'LOWSTOCK', value: 'lowstock'},
+				{label: 'OUTOFSTOCK', value: 'outofstock'}
+			]
+		}
+	},
+	productService: null,
+	created() {
+		this.service = new API();
+		this.initFilters();
+	},
+	mounted() {
+		this.productService.getProducts().then(data => this.products = data);
+	},
+	methods: {
+		formatCurrency(value) {
+			if(value)
+				return value.toLocaleString('en-US', {style: 'currency', currency: 'USD'});
+			return;
+		},
+	}
 }
 </script>

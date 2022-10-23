@@ -17,9 +17,9 @@ import (
 type authStatus int
 
 const (
-	AUTH_STATUS_N authStatus = iota
-	AUTH_STATUS_A
-	AUTH_STATUS_V
+	AUTH_STATUS_N authStatus = iota // None
+	AUTH_STATUS_A                   // Admin
+	AUTH_STATUS_V                   // View
 )
 
 const (
@@ -89,10 +89,10 @@ func VerifySessionToken(tokenBytes []byte) authStatus {
 	return authStatus(status)
 }
 
-func AuthStatus(r *http.Request) authStatus {
+func ExtractSessionToken(r *http.Request) []byte {
 	authHeader, exists := r.Header["Authorization"]
 	if !exists {
-		return AUTH_STATUS_N
+		return []byte{}
 	}
 
 	for _, value := range authHeader {
@@ -102,15 +102,19 @@ func AuthStatus(r *http.Request) authStatus {
 			continue
 		}
 
-		if status := VerifySessionToken([]byte(parts[1])); status != AUTH_STATUS_N {
-			return status
-		}
+		return []byte(parts[1])
 	}
 
-	return AUTH_STATUS_N
+	return []byte{}
 }
 
-func StatusInGroup(status authStatus, group []authStatus) bool {
+func AuthStatus(r *http.Request) authStatus {
+	return VerifySessionToken(
+		ExtractSessionToken(r),
+	)
+}
+
+func StatusInGroup(status authStatus, group ...authStatus) bool {
 	for _, gstatus := range group {
 		if status == gstatus {
 			return true
@@ -121,7 +125,6 @@ func StatusInGroup(status authStatus, group []authStatus) bool {
 }
 
 func TradeTokens(c Config, intoken []byte) ([]byte, bool) {
-
 	switch string(intoken) {
 	case "":
 		// Special case to effectively disable accounts without a token.

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 
-	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/pmanager"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 )
 
 //go:embed ui/dist/*

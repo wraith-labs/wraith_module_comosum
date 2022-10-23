@@ -1,4 +1,4 @@
-module git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms
+module dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms
 
 go 1.19
 

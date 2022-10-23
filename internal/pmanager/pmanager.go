@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"git.0x1a8510f2.space/wraith-labs/wraith-module-pinecomms/internal/misc"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/misc"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"

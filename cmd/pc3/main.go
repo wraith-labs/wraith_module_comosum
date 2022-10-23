@@ -4,7 +4,6 @@ import (
 	"crypto/ed25519"
 	"embed"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"strings"
 	"syscall"
 
@@ -92,26 +90,14 @@ func main() {
 			switch path {
 			case "about":
 				// Require auth.
-				if !StatusInGroup(AuthStatus(r), []authStatus{
-					AUTH_STATUS_A, AUTH_STATUS_V,
-				}) {
+				if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
 					w.WriteHeader(401)
 					return
 				}
 
-				// Collect necessary information.
-				buildinfo, _ := debug.ReadBuildInfo()
-
-				// Build response data.
-				data, err := json.Marshal(map[string]any{
-					"build": buildinfo,
-				})
-				if err != nil {
-					panic(fmt.Sprintf("error while generating `about` API response: %v", err))
-				}
-
-				// Send!
-				w.Write(data)
+				handleAbout(w)
+			case "checkauth":
+				// TODO
 			case "auth":
 				// Make sure we haven't exceeded the limit for failed logins.
 				if c.attemptsUntilLockout.Load() <= 0 {

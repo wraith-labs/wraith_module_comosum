@@ -12,7 +12,17 @@
                 
                     <div class="w-full md:w-10 mx-auto">
                         <label for="token" class="block text-900 font-medium text-xl mb-2">Token</label>
-                        <Password id="token" v-model="token" placeholder="Token" :toggleMask="true" class="w-full mb-3" inputClass="w-full" inputStyle="padding:1rem"></Password>
+                        <Password
+                            id="token"
+                            v-model="token"
+                            placeholder="Token"
+                            :toggleMask="true"
+                            :feedback="false"
+                            :required="true"
+                            class="w-full mb-3"
+                            inputClass="w-full"
+                            inputStyle="padding:1rem"
+                        ></Password>
 
                         <Button label="Sign In" class="w-full p-3 text-xl"></button>
                     </div>

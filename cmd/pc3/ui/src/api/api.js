@@ -1,11 +1,11 @@
-const API_BASE_PATH = 'X/'
-const API_AUTH_PATH = API_BASE_PATH+'auth'
-const API_CHECKAUTH_PATH = API_BASE_PATH+'checkauth'
+const API_PATH_BASE = 'X/'
+const API_PATH_AUTH = API_PATH_BASE+'auth'
+const API_PATH_CHECKAUTH = API_PATH_BASE+'checkauth'
 
 export default class API {
 
     async auth(uToken) {
-        const res = await fetch(API_AUTH_PATH, { method: 'POST', body: uToken })
+        const res = await fetch(API_PATH_AUTH, { method: 'POST', body: uToken })
 
         if (res.status !== 200) {
             return false
@@ -64,7 +64,7 @@ export default class API {
         }
 
         // The token has expired; session invalid.
-        if (new Date(expiry) < new Date().getUTCDate()) {
+        if (new Date(expiry).getTime() < new Date().getTime()) {
             // Clear localStorage to make sure no unnecessary data hangs around.
             localStorage.clear()
 
@@ -73,7 +73,7 @@ export default class API {
 
         // Finally, bounce the session against the API to be sure.
         const res = await fetch(
-            API_CHECKAUTH_PATH,
+            API_PATH_CHECKAUTH,
             {
                 method: 'POST',
                 headers: {

@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -91,42 +92,59 @@ func main() {
 			case "about":
 				// Require auth.
 				if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-					w.WriteHeader(401)
+					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
 
 				handleAbout(w)
 			case "checkauth":
-				// TODO
+				if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
 			case "auth":
 				// Make sure we haven't exceeded the limit for failed logins.
 				if c.attemptsUntilLockout.Load() <= 0 {
-					w.WriteHeader(418)
+					w.WriteHeader(http.StatusTeapot)
 					return
 				}
 
 				// Get the credential from the request body.
 				intoken, err := io.ReadAll(r.Body)
 				if err != nil {
-					w.WriteHeader(500)
+					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
 				// Validate credential.
-				outtoken, ok := TradeTokens(c, intoken)
+				outtoken, expiry, status, ok := TradeTokens(c, intoken)
 				if !ok {
 					c.attemptsUntilLockout.Add(-1)
-					w.WriteHeader(401)
+					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
 
 				// Reset failed attempts counter on successful login.
 				c.attemptsUntilLockout.Store(STARTING_ATTEMPTS_UNTIL_LOCKOUT)
 
-				w.Write(outtoken)
+				// Create a response.
+				response, err := json.Marshal(authSuccessResponse{
+					Token:  string(outtoken),
+					Expiry: expiry,
+					Access: status,
+				})
+
+				// Not much we can do.
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+
+				// 200.
+				w.Write(response)
 			default:
 				// If someone makes an API call we don't recognise, we're a teapot.
-				w.WriteHeader(418)
+				w.WriteHeader(http.StatusTeapot)
 			}
 		}),
 		"/": http.FileServer(http.FS(ui)),

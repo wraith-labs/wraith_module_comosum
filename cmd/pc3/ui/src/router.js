@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import App from './App.vue';
+import API from './api/api';
 
 const routes = [
     {
@@ -58,6 +59,20 @@ const routes = [
 const router = createRouter({
     history: createWebHashHistory(),
     routes,
+});
+
+router.beforeEach(async (to) => {
+    window.scrollTo(0, 0)
+
+    // Make sure we can only see the dash when we're signed in.
+    const api = new API()
+    if (to.path !== '/login') {
+        const authed = await api.checkauth()
+        if (!authed) return { path: '/login' }
+    } else {
+        const authed = await api.checkauth()
+        if (authed) return { path: '/' }
+    }
 });
 
 export default router;

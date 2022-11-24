@@ -5,7 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"time"
 )
+
+type authSuccessResponse struct {
+	Token  string     `json:"token"`
+	Expiry time.Time  `json:"expiry"`
+	Access authStatus `json:"access"`
+}
 
 func handleAbout(w http.ResponseWriter) {
 	// Collect necessary information.

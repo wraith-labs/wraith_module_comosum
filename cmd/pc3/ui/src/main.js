@@ -96,11 +96,6 @@ import TriStateCheckbox from 'primevue/tristatecheckbox';
 import CodeHighlight from './AppCodeHighlight';
 import BlockViewer from './BlockViewer';
 
-router.beforeEach(function(to, from, next) {
-    window.scrollTo(0, 0);
-    next();
-});
-
 const app = createApp(AppWrapper);
 
 app.config.globalProperties.$appState = reactive({ theme: 'arya-green', darkTheme: true });

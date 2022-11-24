@@ -12,19 +12,21 @@
                 
                     <div class="w-full md:w-10 mx-auto">
                         <label for="token" class="block text-900 font-medium text-xl mb-2">Token</label>
+                        <small id="token-auth-failed-msg" class="p-error" :hidden="true">Token auth failed</small>
                         <Password
                             id="token"
                             v-model="token"
-                            placeholder="Token"
-                            :toggleMask="true"
-                            :feedback="false"
-                            :required="true"
+                            placeholder="Enter Token"
                             class="w-full mb-3"
                             inputClass="w-full"
                             inputStyle="padding:1rem"
+                            :toggleMask="true"
+                            :feedback="false"
+                            :required="true"
+                            @keyup.enter = "signIn"
                         ></Password>
 
-                        <Button label="Sign In" class="w-full p-3 text-xl"></button>
+                        <Button label="Sign In" class="w-full p-3 text-xl" @click="signIn"></button>
                     </div>
                 </div>
             </div>
@@ -36,10 +38,31 @@
 import API from '../api/api';
 
 export default {
+    created() {
+        this.api = new API()
+    },
+    beforeMount() {
+        this.api.checkauth().then((authed) => {
+            if (authed) {
+                window.location.hash = '#/'
+            }
+        })
+    },
     data() {
         return {
             token: '',
-            remember: false
+        }
+    },
+    methods: {
+        signIn() {
+            this.api.auth(this.token).then((authed) => {
+                if (authed) {
+                    document.getElementById('token-auth-failed-msg').hidden = true
+                    window.location.hash = '#/'
+                } else {
+                    document.getElementById('token-auth-failed-msg').hidden = false
+                }
+            })
         }
     }
 }

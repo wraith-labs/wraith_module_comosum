@@ -17,13 +17,18 @@ import (
 type authStatus int
 
 const (
+	// The order here is important and means that, if other
+	// access levels are added in future, existing sessions
+	// will stay the same or be demoted but not promoted.
+	// Always put the access levels in order of lowest to
+	// highest privilege!
 	AUTH_STATUS_N authStatus = iota // None
-	AUTH_STATUS_A                   // Admin
 	AUTH_STATUS_V                   // View
+	AUTH_STATUS_A                   // Admin
 )
 
 const (
-	SESSION_TOKEN_VALIDITY = time.Hour
+	SESSION_TOKEN_VALIDITY = 2 * time.Hour
 )
 
 var authKey []byte
@@ -49,14 +54,14 @@ func init() {
 	}
 }
 
-func CreateSessionToken(status authStatus) []byte {
+func CreateSessionToken(status authStatus) ([]byte, time.Time) {
+	expiry := time.Now().UTC().Add(SESSION_TOKEN_VALIDITY)
+
 	claims := &jwt.RegisteredClaims{
-		ID:       uuid.New().String(),
-		IssuedAt: jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(
-			time.Now().Add(SESSION_TOKEN_VALIDITY),
-		),
-		Subject: fmt.Sprint(status),
+		ID:        uuid.New().String(),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(expiry),
+		Subject:   fmt.Sprint(status),
 	}
 
 	builder := jwt.NewBuilder(authSigner)
@@ -66,7 +71,7 @@ func CreateSessionToken(status authStatus) []byte {
 		panic(fmt.Sprintf("failed to generate session token: %e", err))
 	}
 
-	return token.Bytes()
+	return token.Bytes(), expiry
 }
 
 func VerifySessionToken(tokenBytes []byte) authStatus {
@@ -124,16 +129,20 @@ func StatusInGroup(status authStatus, group ...authStatus) bool {
 	return false
 }
 
-func TradeTokens(c Config, intoken []byte) ([]byte, bool) {
+func TradeTokens(c Config, intoken []byte) ([]byte, time.Time, authStatus, bool) {
+	// If the admin and view tokens are the same, the issued session will
+	// have view privileges for security.
 	switch string(intoken) {
 	case "":
-		// Special case to effectively disable accounts without a token.
-		return []byte{}, false
-	case c.panelAdminToken:
-		return CreateSessionToken(AUTH_STATUS_A), true
+		// Special case to effectively disable access levels without a token.
+		return []byte{}, time.Time{}, AUTH_STATUS_N, false
 	case c.panelViewToken:
-		return CreateSessionToken(AUTH_STATUS_V), true
+		token, expiry := CreateSessionToken(AUTH_STATUS_V)
+		return token, expiry, AUTH_STATUS_V, true
+	case c.panelAdminToken:
+		token, expiry := CreateSessionToken(AUTH_STATUS_A)
+		return token, expiry, AUTH_STATUS_A, true
 	default:
-		return []byte{}, false
+		return []byte{}, time.Time{}, AUTH_STATUS_N, false
 	}
 }

@@ -84,77 +84,83 @@ func main() {
 		panic(err)
 	}
 
-	pm.SetWebserverHandlers(map[string]http.Handler{
-		"/X/": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := strings.TrimPrefix(r.URL.EscapedPath(), "/X/")
+	pm.SetWebserverHandlers([]pmanager.WebserverHandler{
+		{
+			Path: "/X/",
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				path := strings.TrimPrefix(r.URL.EscapedPath(), "/X/")
 
-			switch path {
-			case "about":
-				// Require auth.
-				if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
+				switch path {
+				case "about":
+					// Require auth.
+					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
 
-				handleAbout(w)
-			case "checkauth":
-				if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-				w.WriteHeader(http.StatusNoContent)
-			case "auth":
-				// Make sure we haven't exceeded the limit for failed logins.
-				if c.attemptsUntilLockout.Load() <= 0 {
+					handleAbout(w)
+				case "checkauth":
+					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					w.WriteHeader(http.StatusNoContent)
+				case "auth":
+					// Make sure we haven't exceeded the limit for failed logins.
+					if c.attemptsUntilLockout.Load() <= 0 {
+						w.WriteHeader(http.StatusTeapot)
+						return
+					}
+
+					// Get the data from the request body.
+					reqbody, err := io.ReadAll(r.Body)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
+					reqdata := authRequest{}
+					err = json.Unmarshal(reqbody, &reqdata)
+					if err != nil {
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
+
+					// Validate credential.
+					outtoken, expiry, status, ok := TradeTokens(c, reqdata)
+					if !ok {
+						c.attemptsUntilLockout.Add(-1)
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+
+					// Reset failed attempts counter on successful login.
+					c.attemptsUntilLockout.Store(STARTING_ATTEMPTS_UNTIL_LOCKOUT)
+
+					// Create a response.
+					response, err := json.Marshal(authSuccessResponse{
+						Token:  string(outtoken),
+						Expiry: expiry,
+						Access: status,
+					})
+
+					// Not much we can do.
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+
+					// 200.
+					w.Write(response)
+				default:
+					// If someone makes an API call we don't recognise, we're a teapot.
 					w.WriteHeader(http.StatusTeapot)
-					return
 				}
-
-				// Get the data from the request body.
-				reqbody, err := io.ReadAll(r.Body)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-
-				reqdata := authRequest{}
-				err = json.Unmarshal(reqbody, &reqdata)
-				if err != nil {
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-
-				// Validate credential.
-				outtoken, expiry, status, ok := TradeTokens(c, reqdata)
-				if !ok {
-					c.attemptsUntilLockout.Add(-1)
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				// Reset failed attempts counter on successful login.
-				c.attemptsUntilLockout.Store(STARTING_ATTEMPTS_UNTIL_LOCKOUT)
-
-				// Create a response.
-				response, err := json.Marshal(authSuccessResponse{
-					Token:  string(outtoken),
-					Expiry: expiry,
-					Access: status,
-				})
-
-				// Not much we can do.
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-				}
-
-				// 200.
-				w.Write(response)
-			default:
-				// If someone makes an API call we don't recognise, we're a teapot.
-				w.WriteHeader(http.StatusTeapot)
-			}
-		}),
-		"/": http.FileServer(http.FS(ui)),
+			}),
+		},
+		{
+			Path:    "/",
+			Handler: http.FileServer(http.FS(ui)),
+		},
 	})
 
 	// Start pinecone.

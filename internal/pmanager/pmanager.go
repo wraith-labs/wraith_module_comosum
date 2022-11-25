@@ -217,8 +217,8 @@ func (pm *manager) Start() {
 		}
 
 		// If additional handlers are configured for the webserver, add them.
-		for route, handler := range c.webserverHandlers {
-			httpRouter.PathPrefix(route).Handler(handler)
+		for _, handler := range c.webserverHandlers {
+			httpRouter.PathPrefix(handler.Path).Handler(handler.Handler)
 		}
 
 		// Non-pinecone HTTP server.
@@ -423,7 +423,7 @@ func GetInstance() *manager {
 			webserverDebugPath: "",
 			useMulticast:       false,
 			staticPeers:        []string{},
-			webserverHandlers:  map[string]http.Handler{},
+			webserverHandlers:  []WebserverHandler{},
 		}
 
 		// Set default config values to ensure that the config is never

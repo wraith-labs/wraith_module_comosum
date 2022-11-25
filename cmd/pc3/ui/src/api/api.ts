@@ -6,7 +6,7 @@ const API_PATH_CHECKAUTH = API_PATH_BASE+'checkauth'
 
 export default class API {
 
-    async auth(uToken) {
+    async auth(uToken: string) {
         // Hash the token with a time-based nonce for slightly improved security.
         const salt = new Date().getTime()
         const uTokenHash = await sha512(uToken+'|'+salt+'|wmp')
@@ -48,10 +48,17 @@ export default class API {
     }
 
     async checkauth() {
-        let session = {}
+        let session: {
+            token: string,
+            expiry: number,
+            access: number,
+        }
         try {
-            session = JSON.parse(localStorage.getItem('session'))
+            session = JSON.parse(localStorage.getItem('session') as any)
         } catch {
+            // Clear localStorage to make sure no unnecessary data hangs around.
+            localStorage.clear()
+            
             return false
         }
 
@@ -65,18 +72,6 @@ export default class API {
 
         const token = session['token']
         const expiry = session['expiry']
-        const access = session['access']
-
-        // We're missing some session information; session invalid.
-        if (token === undefined ||
-            expiry === undefined ||
-            access === undefined
-        ) {
-            // Clear localStorage to make sure no unnecessary data hangs around.
-            localStorage.clear()
-
-            return false
-        }
 
         // The token has expired; session invalid.
         if (new Date(expiry).getTime() < new Date().getTime()) {

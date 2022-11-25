@@ -1,29 +1,32 @@
 {
-	"name": "wraith-module-pinecomms-ui",
-	"version": "0.0.0",
-	"license": "AGPL-3.0-only",
-	"scripts": {
-		"serve": "vue-cli-service serve",
-		"build": "vue-cli-service build",
-		"lint": "vue-cli-service lint",
-		"test:unit": "vue-cli-service test:unit"
-	},
-	"devDependencies": {
-		"@vue/cli-plugin-babel": "~5.0.8",
-		"@vue/cli-plugin-router": "~5.0.8",
-		"@vue/cli-service": "~5.0.8",
-		"@vue/compiler-sfc": "^3.2.45",
-		"sass": "^1.56.1",
-		"sass-loader": "^13.2.0"
-	},
-	"dependencies": {
-		"chart.js": "^4.0.1",
-		"core-js": "^3.26.1",
-		"primeflex": "^3.3.0",
-		"primeicons": "^6.0.1",
-		"primevue": "^3.20.0",
-		"prismjs": "^1.29.0",
-		"vue": "^3.2.45",
-		"vue-router": "^4.1.6"
-	}
+  "name": "wraith-module-pinecomms-ui",
+  "version": "0.0.0",
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "test:unit": "vue-cli-service test:unit",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "chart.js": "^4.0.1",
+    "core-js": "^3.26.1",
+    "primeflex": "^3.3.0",
+    "primeicons": "^6.0.1",
+    "primevue": "^3.20.0",
+    "prismjs": "^1.29.0",
+    "vue": "^3.2.45",
+    "vue-router": "^4.1.6"
+  },
+  "devDependencies": {
+    "@types/prismjs": "^1.26.0",
+    "@vue/cli-plugin-babel": "~5.0.8",
+    "@vue/cli-plugin-router": "~5.0.8",
+    "@vue/cli-plugin-typescript": "~5.0.0",
+    "@vue/cli-service": "~5.0.8",
+    "@vue/compiler-sfc": "^3.2.45",
+    "sass": "^1.56.1",
+    "sass-loader": "^13.2.0",
+    "typescript": "^4.9.3"
+  },
+  "license": "AGPL-3.0-only"
 }

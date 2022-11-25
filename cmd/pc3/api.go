@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+type authRequest struct {
+	Token string `json:"token"`
+	Time  int64  `json:"time"`
+}
+
 type authSuccessResponse struct {
 	Token  string     `json:"token"`
 	Expiry time.Time  `json:"expiry"`

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -129,17 +132,42 @@ func StatusInGroup(status authStatus, group ...authStatus) bool {
 	return false
 }
 
-func TradeTokens(c Config, intoken []byte) ([]byte, time.Time, authStatus, bool) {
+func ComputeTimeTokenHash(token []byte, authtime time.Time) string {
+	hash := sha512.Sum512(bytes.Join([][]byte{
+		token,
+		[]byte("|"),
+		[]byte(fmt.Sprint(authtime.UTC().UnixMilli())),
+		[]byte("|wmp"),
+	}, []byte{}))
+	return hex.EncodeToString(hash[:])
+}
+
+func TradeTokens(c Config, reqdata authRequest) ([]byte, time.Time, authStatus, bool) {
+	authtime := time.UnixMilli(reqdata.Time)
+
+	// Make sure that the authtime is within reasonable boundaries (10 seconds either way).
+	if authtime.Before(time.Now().UTC().Add(-10*time.Second)) ||
+		authtime.After(time.Now().UTC().Add(10*time.Second)) {
+
+		return []byte{}, time.Time{}, AUTH_STATUS_N, false
+	}
+
+	// Compute time-based hashes of the tokens.
+	emptyHash := ComputeTimeTokenHash([]byte{}, authtime)
+	viewHash := ComputeTimeTokenHash([]byte(c.panelViewToken), authtime)
+	adminHash := ComputeTimeTokenHash([]byte(c.panelAdminToken), authtime)
+	actualHash := reqdata.Token
+
 	// If the admin and view tokens are the same, the issued session will
 	// have view privileges for security.
-	switch string(intoken) {
-	case "":
+	switch actualHash {
+	case emptyHash:
 		// Special case to effectively disable access levels without a token.
 		return []byte{}, time.Time{}, AUTH_STATUS_N, false
-	case c.panelViewToken:
+	case viewHash:
 		token, expiry := CreateSessionToken(AUTH_STATUS_V)
 		return token, expiry, AUTH_STATUS_V, true
-	case c.panelAdminToken:
+	case adminHash:
 		token, expiry := CreateSessionToken(AUTH_STATUS_A)
 		return token, expiry, AUTH_STATUS_A, true
 	default:

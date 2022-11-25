@@ -110,15 +110,22 @@ func main() {
 					return
 				}
 
-				// Get the credential from the request body.
-				intoken, err := io.ReadAll(r.Body)
+				// Get the data from the request body.
+				reqbody, err := io.ReadAll(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
+				reqdata := authRequest{}
+				err = json.Unmarshal(reqbody, &reqdata)
+				if err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
 				// Validate credential.
-				outtoken, expiry, status, ok := TradeTokens(c, intoken)
+				outtoken, expiry, status, ok := TradeTokens(c, reqdata)
 				if !ok {
 					c.attemptsUntilLockout.Add(-1)
 					w.WriteHeader(http.StatusUnauthorized)

@@ -1,3 +1,5 @@
+import { sha512 } from './helpers'
+
 const API_PATH_BASE = 'X/'
 const API_PATH_AUTH = API_PATH_BASE+'auth'
 const API_PATH_CHECKAUTH = API_PATH_BASE+'checkauth'
@@ -5,7 +7,20 @@ const API_PATH_CHECKAUTH = API_PATH_BASE+'checkauth'
 export default class API {
 
     async auth(uToken) {
-        const res = await fetch(API_PATH_AUTH, { method: 'POST', body: uToken })
+        // Hash the token with a time-based nonce for slightly improved security.
+        const salt = new Date().getTime()
+        const uTokenHash = await sha512(uToken+'|'+salt+'|wmp')
+
+        // Send the auth request.
+        const res = await fetch(
+            API_PATH_AUTH,
+            {
+                method: 'POST',
+                body: JSON.stringify({
+                    token: uTokenHash,
+                    time: salt,
+                }),
+            })
 
         if (res.status !== 200) {
             return false

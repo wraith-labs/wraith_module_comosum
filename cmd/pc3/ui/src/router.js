@@ -10,6 +10,7 @@ const routes = [
         children: [
             {
                 path: '',
+                name: 'dashboard',
                 component: () => import('./pages/Dashboard.vue')
             },
             {

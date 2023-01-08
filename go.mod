@@ -3,8 +3,9 @@ module dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms
 go 1.19
 
 require (
-	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230108044209-a3d333e966c0
+	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230108053804-2017758710bb
 	github.com/cristalhq/jwt/v4 v4.0.2
+	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
@@ -21,6 +22,7 @@ require (
 	github.com/marten-seemann/qtls-go1-18 v0.1.4 // indirect
 	github.com/marten-seemann/qtls-go1-19 v0.1.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.6.1 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20230105202349-8879d0199aa3 // indirect

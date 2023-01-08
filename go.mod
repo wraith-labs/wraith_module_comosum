@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d // indirect
+	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20221219190121-3cb0bae90811 // indirect

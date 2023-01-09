@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/misc"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"
@@ -35,8 +36,8 @@ type manager struct {
 	// Internal communication channels.
 	reqExit chan struct{}
 	ackExit chan struct{}
-	txq     chan packet
-	rxq     chan packet
+	txq     chan proto.Packet
+	rxq     chan proto.Packet
 
 	// A struct of config options for the manager with a lock to make it thread-safe.
 	conf config
@@ -79,27 +80,19 @@ func (pm *manager) Start() {
 
 		// Set up rx queue handling.
 		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
-		pMux.PathPrefix(ROUTE_PREFIX).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pMux.PathPrefix(proto.ROUTE_PREFIX).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Read the payload from request body.
-			payload, err := io.ReadAll(r.Body)
-			if err != nil {
-				w.WriteHeader(400)
-				return
-			}
-
-			// Try to JSON parse the payload.
-			data := packetData{}
-			err = json.Unmarshal(payload, &data)
+			data, err := io.ReadAll(r.Body)
 			if err != nil {
 				w.WriteHeader(400)
 				return
 			}
 
 			// Fill out packet metadata.
-			p := packet{
+			p := proto.Packet{
 				Peer:   r.RemoteAddr,
 				Method: r.Method,
-				Route:  strings.TrimPrefix(r.URL.EscapedPath(), ROUTE_PREFIX),
+				Route:  strings.TrimPrefix(r.URL.EscapedPath(), proto.ROUTE_PREFIX),
 				Data:   data,
 			}
 
@@ -275,7 +268,7 @@ func (pm *manager) Start() {
 						URL: &url.URL{
 							Scheme: "http",
 							Host:   p.Peer,
-							Path:   ROUTE_PREFIX + p.Route,
+							Path:   proto.ROUTE_PREFIX + p.Route,
 						},
 						Cancel: ctx.Done(),
 						Body:   io.NopCloser(bytes.NewReader(payload)),
@@ -366,7 +359,7 @@ func (pm *manager) Restart() {
 }
 
 // Send a given packet to a specific peer.
-func (pm *manager) Send(ctx context.Context, p packet) error {
+func (pm *manager) Send(ctx context.Context, p proto.Packet) error {
 	select {
 	case pm.txq <- p:
 		return nil
@@ -379,14 +372,14 @@ func (pm *manager) Send(ctx context.Context, p packet) error {
 
 // Receive incoming packets. Blocks until either a packet is received or
 // the provided context expires.
-func (pm *manager) Recv(ctx context.Context) (packet, error) {
+func (pm *manager) Recv(ctx context.Context) (proto.Packet, error) {
 	select {
 	case p := <-pm.rxq:
 		return p, nil
 	case <-pm.ackExit:
-		return packet{}, fmt.Errorf("manager exited while trying to send packet")
+		return proto.Packet{}, fmt.Errorf("manager exited while trying to send packet")
 	case <-ctx.Done():
-		return packet{}, fmt.Errorf("context cancelled while trying to receive packet (%e)", ctx.Err())
+		return proto.Packet{}, fmt.Errorf("context cancelled while trying to receive packet (%e)", ctx.Err())
 	}
 }
 
@@ -432,8 +425,8 @@ func GetInstance() *manager {
 		managerInstance.conf.configSnapshot = defaults
 
 		// Init communication channels.
-		managerInstance.txq = make(chan packet)
-		managerInstance.rxq = make(chan packet)
+		managerInstance.txq = make(chan proto.Packet)
+		managerInstance.rxq = make(chan proto.Packet)
 	})
 
 	return managerInstance

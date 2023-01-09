@@ -8,12 +8,12 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-type packet interface {
+type packetData interface {
 	Heartbeat | Req | Res
 }
 
 // Converts a packet into a byte array ready for transmission.
-func Marshal[P packet](p *P, signingKey ed25519.PrivateKey) ([]byte, error) {
+func Marshal[P packetData](p *P, signingKey ed25519.PrivateKey) ([]byte, error) {
 	// Get the CBOR representation of the data.
 	dataBytes, err := cbor.Marshal(p)
 	if err != nil {
@@ -31,7 +31,7 @@ func Marshal[P packet](p *P, signingKey ed25519.PrivateKey) ([]byte, error) {
 }
 
 // Converts a byte array into a packet so that it can be processed.
-func Unmarshal[P packet](p *P, verificationKey ed25519.PublicKey, data []byte) error {
+func Unmarshal[P packetData](p *P, verificationKey ed25519.PublicKey, data []byte) error {
 	// Make sure the data is correctly formatted (at least 64 bytes)
 	if len(data) < 64 {
 		return errors.New("provided data was too short")

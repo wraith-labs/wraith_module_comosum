@@ -103,17 +103,15 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 
 		for {
 			// Pick an interval between min and max for the next heartbeat.
-			interval := rand.Intn(
-				proto.HEARTBEAT_INTERVAL_MAX - proto.HEARTBEAT_INTERVAL_MIN,
+			interval := proto.HEARTBEAT_INTERVAL_MIN + rand.Intn(
+				proto.HEARTBEAT_INTERVAL_MAX-proto.HEARTBEAT_INTERVAL_MIN,
 			)
 
 			// Send heartbeat after interval or exit if requested.
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(
-				time.Duration(interval+proto.HEARTBEAT_INTERVAL_MIN) * time.Second,
-			):
+			case <-time.After(time.Duration(interval) * time.Second):
 				// Build a heartbeat data packet.
 				heartbeatData := proto.PacketHeartbeat{
 					Fingerprint: fingerprint,

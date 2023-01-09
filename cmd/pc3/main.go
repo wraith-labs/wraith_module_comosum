@@ -178,6 +178,7 @@ mainloop:
 		case <-sigchan:
 			break mainloop
 		case <-recv:
+			// TODO
 			println("received message")
 		}
 	}

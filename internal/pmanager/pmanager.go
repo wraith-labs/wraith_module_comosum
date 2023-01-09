@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -255,13 +254,6 @@ func (pm *manager) Start() {
 				select {
 				case p := <-pm.txq:
 
-					// Serialize the payload from the queue element.
-					payload, err := json.Marshal(p.Data)
-					if err != nil {
-						pm.conf.logger.Printf("failed to serialize tx queue element due to error: %e", err)
-						continue
-					}
-
 					// Set up request to peer.
 					req := http.Request{
 						Method: p.Method,
@@ -271,7 +263,7 @@ func (pm *manager) Start() {
 							Path:   proto.ROUTE_PREFIX + p.Route,
 						},
 						Cancel: ctx.Done(),
-						Body:   io.NopCloser(bytes.NewReader(payload)),
+						Body:   io.NopCloser(bytes.NewReader(p.Data)),
 					}
 
 					// Send request to peer.

@@ -19,7 +19,7 @@ type Heartbeat struct {
 	HostUser string
 
 	// The ID of the user under which Wraith is running.
-	HostUserId int
+	HostUserId string
 
 	// A list of errors the Wraith has encountered.
 	Errors []error

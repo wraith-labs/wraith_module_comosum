@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"embed"
 	"encoding/hex"
@@ -166,11 +167,25 @@ func main() {
 	// Start pinecone.
 	go pm.Start()
 
+	// Start receiving messages.
+	// Background context is okay because the channel will be closed
+	// when the manager exits further down anyway.
+	recv := pm.RecvChan(context.Background())
+
+mainloop:
+	for {
+		select {
+		case <-sigchan:
+			break mainloop
+		case <-recv:
+			println("received message")
+		}
+	}
+
 	//
 	// On exit.
 	//
 
-	<-sigchan
 	fmt.Println("exit requested; exiting gracefully")
 
 	go func() {

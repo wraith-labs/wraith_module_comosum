@@ -3,6 +3,7 @@ package modulepinecomms
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -62,19 +63,30 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	pm.SetUseMulticast(m.UseMulticast)
 	pm.SetStaticPeers(m.StaticPeers)
 
+	// Start the pinecone manager and make sure it stops when
+	// the module does.
+	defer func() {
+		pm.Stop()
+	}()
+	go pm.Start()
+
+	//
+	// Run the module.
+	//
+
 	// Heartbeat loop.
 	go func() {
 		for {
 			// Pick an interval between min and max for the next heartbeat.
-			interval := rand.Intn(int(
+			interval := rand.Intn(
 				proto.HEARTBEAT_INTERVAL_MAX - proto.HEARTBEAT_INTERVAL_MIN,
-			))
+			)
 
 			// Send heartbeat after interval or exit if requested.
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Duration(interval)):
+			case <-time.After(time.Duration(interval) * time.Second):
 				// Build a heartbeat data packet.
 				// TODO
 				heartbeatData := proto.Heartbeat{
@@ -93,7 +105,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 
 				// Send the packet.
 				pm.Send(ctx, proto.Packet{
-					Peer:   string(m.AdminPubKey),
+					Peer:   hex.EncodeToString(m.AdminPubKey),
 					Method: "POST",
 					Route:  proto.ROUTE_HEARTBEAT,
 					Data:   heartbeatBytes,

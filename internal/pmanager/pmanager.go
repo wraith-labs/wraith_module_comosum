@@ -377,10 +377,28 @@ func (pm *manager) Recv(ctx context.Context) (proto.Packet, error) {
 	case p := <-pm.rxq:
 		return p, nil
 	case <-pm.ackExit:
-		return proto.Packet{}, fmt.Errorf("manager exited while trying to send packet")
+		return proto.Packet{}, fmt.Errorf("manager exited while trying to receive packet")
 	case <-ctx.Done():
 		return proto.Packet{}, fmt.Errorf("context cancelled while trying to receive packet (%e)", ctx.Err())
 	}
+}
+
+// Receive incoming packets from a channel.
+func (pm *manager) RecvChan(ctx context.Context) chan proto.Packet {
+	c := make(chan proto.Packet)
+	go func() {
+		defer func() {
+			close(c)
+		}()
+		for {
+			packet, err := pm.Recv(ctx)
+			if err != nil {
+				return
+			}
+			c <- packet
+		}
+	}()
+	return c
 }
 
 // Check whether the pinecone manager is currently running.

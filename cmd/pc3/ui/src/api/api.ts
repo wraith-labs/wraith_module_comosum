@@ -3,8 +3,39 @@ import { sha512 } from './helpers'
 const API_PATH_BASE = 'X/'
 const API_PATH_AUTH = API_PATH_BASE+'auth'
 const API_PATH_CHECKAUTH = API_PATH_BASE+'checkauth'
+const API_PATH_ABOUT = API_PATH_BASE+'about'
 
 export default class API {
+
+    async apifetch(input: RequestInfo | URL, init?: RequestInit | undefined): Promise<Response> {
+        // If we don't have an active session, fallback to a regular fetch
+        if (!this.checkauth()) {
+            return fetch(input, init)
+        }
+
+        let session: {
+            token: string,
+            expiry: number,
+            access: number,
+        } = JSON.parse(localStorage.getItem('session') as any)
+
+        let customInit: RequestInit = {}
+        if (init !== undefined) {
+            customInit = init
+        }
+        if (customInit.headers === undefined) {
+            customInit.headers = {
+                'Authorization': 'Bearer '+session.token,
+            }
+        } else {
+            customInit.headers = {
+                ...customInit.headers,
+                'Authorization': 'Bearer '+session.token,
+            }
+        }
+
+        return fetch(input, customInit)
+    }
 
     async auth(uToken: string) {
         // Hash the token with a time-based nonce for slightly improved security.
@@ -82,6 +113,7 @@ export default class API {
         }
 
         // Finally, bounce the session against the API to be sure.
+        // Do not use apifetch here or we'll get infinite recursion!
         const res = await fetch(
             API_PATH_CHECKAUTH,
             {
@@ -103,6 +135,11 @@ export default class API {
         }
 
         return true
+    }
+
+    async fetchAbout() {
+        const res = await this.apifetch(API_PATH_ABOUT)
+        return await res.json()
     }
 
 }

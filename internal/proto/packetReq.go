@@ -2,7 +2,7 @@ package proto
 
 // The structure of requests pc3 makes to Wraiths running the
 // pinecomms module.
-type Req struct {
+type PacketReq struct {
 	// The actual payload which tells the module what to do.
 	Payload struct {
 		// Which shm fields should be read and returned.

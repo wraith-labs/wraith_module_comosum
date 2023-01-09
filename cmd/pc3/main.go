@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/pmanager"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 )
 
 //go:embed ui/dist/*
@@ -175,11 +176,25 @@ func main() {
 mainloop:
 	for {
 		select {
+		// Exit if requested.
 		case <-sigchan:
 			break mainloop
-		case <-recv:
-			// TODO
-			println("received message")
+		// Process incoming packets.
+		case packet := <-recv:
+			peerPublicKey, err := hex.DecodeString(packet.Peer)
+			if err != nil {
+				// This shouldn't happen, but if the peer public key is
+				// malformed then we have no choice but to ignore the
+				// packet.
+				continue
+			}
+
+			switch packet.Route {
+			case proto.ROUTE_HEARTBEAT:
+				packetData := proto.PacketHeartbeat{}
+				proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
+				fmt.Printf("%v\n", packetData)
+			}
 		}
 	}
 

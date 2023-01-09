@@ -2,7 +2,7 @@ package proto
 
 // The structure of responses Wraiths running the pinecomms module
 // make to pc3.
-type Res struct {
+type PacketRes struct {
 	// The main body of the response.
 	Payload struct {
 		// A map of all read cells and their contents.

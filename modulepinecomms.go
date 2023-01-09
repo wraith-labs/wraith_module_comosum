@@ -111,7 +111,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				return
 			case <-time.After(time.Duration(interval) * time.Second):
 				// Build a heartbeat data packet.
-				heartbeatData := proto.Heartbeat{
+				heartbeatData := proto.PacketHeartbeat{
 					Fingerprint: fingerprint,
 					HostOS:      runtime.GOOS,
 					HostArch:    runtime.GOARCH,

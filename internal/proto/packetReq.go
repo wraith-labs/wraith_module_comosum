@@ -21,4 +21,9 @@ type PacketReq struct {
 	// the payload. If the conditions are not met, the payload
 	// is dropped.
 	Conditions struct{}
+
+	// A transaction ID allowing for mapping between requests
+	// and responses. The TxId is opaque and can be any string
+	// of any length.
+	TxId string
 }

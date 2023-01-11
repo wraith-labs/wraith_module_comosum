@@ -16,7 +16,8 @@ type PacketRes struct {
 		MemList []string
 	}
 
-	// A signature verifying that the request came from the Wraith. Allows
-	// for store-and-forward functionality.
-	Signature []byte
+	// A transaction ID allowing for mapping between requests
+	// and responses. The TxId is opaque and can be any string
+	// of any length.
+	TxId string
 }

@@ -26,6 +26,32 @@ import (
 	pineconeSessions "github.com/matrix-org/pinecone/sessions"
 )
 
+type Manager interface {
+	GetInboundAddr() string
+	GetLogger() *log.Logger
+	GetPineconeIdentity() ed25519.PrivateKey
+	GetStaticPeers() []string
+	GetUseMulticast() bool
+	GetWebserverAddr() string
+	GetWebserverDebugPath() string
+	GetWebserverHandlers() []WebserverHandler
+	IsRunning() bool
+	Recv(ctx context.Context) (proto.Packet, error)
+	RecvChan(ctx context.Context) chan proto.Packet
+	Restart()
+	Send(ctx context.Context, p proto.Packet) error
+	SetInboundAddr(u string)
+	SetLogger(u *log.Logger)
+	SetPineconeIdentity(u ed25519.PrivateKey)
+	SetStaticPeers(u []string)
+	SetUseMulticast(u bool)
+	SetWebserverAddr(u string)
+	SetWebserverDebugPath(u string)
+	SetWebserverHandlers(u []WebserverHandler)
+	Start()
+	Stop()
+}
+
 type manager struct {
 	// Once instances ensuring that each method is only executed once at a given time.
 	startOnce   misc.CheckableOnce
@@ -403,7 +429,7 @@ var managerInstance *manager = nil
 
 // Get the instance of the pinecone manager. This instance is shared for
 // the entire program and successive calls return the existing instance.
-func GetInstance() *manager {
+func GetInstance() Manager {
 	// Create and initialise an instance of manager only once.
 	initonce.Do(func() {
 		// Disable quic-go's debug message

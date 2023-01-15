@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
@@ -182,6 +183,9 @@ mainloop:
 		// Exit if requested.
 		case <-sigchan:
 			break mainloop
+		// Clean up state.
+		case <-time.After(STATE_CLEANUP_INTERVAL):
+			s.Prune()
 		// Process incoming packets.
 		case packet := <-recv:
 			peerPublicKey, err := hex.DecodeString(packet.Peer)

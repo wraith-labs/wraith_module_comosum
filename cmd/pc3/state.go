@@ -82,4 +82,35 @@ func (s *state) Response(src string, res proto.PacketRes) {
 }
 
 // Expire timed-out entries in the state.
-func (s *state) Prune() {}
+func (s *state) Prune() {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	// Clean up expired client heartbeats.
+	go func() {
+		defer wg.Done()
+		s.clientsMutex.Lock()
+		defer s.clientsMutex.Unlock()
+
+		for id, c := range s.clients {
+			if time.Since(c.lastHeartbeatTime) > proto.HEARTBEAT_MARK_DEAD_DELAY {
+				delete(s.clients, id)
+			}
+		}
+	}()
+
+	// Clean up expired request-response pairs.
+	go func() {
+		defer wg.Done()
+		s.requestsMutex.Lock()
+		defer s.requestsMutex.Unlock()
+
+		for id, r := range s.requests {
+			if time.Since(r.requestTime) > STATE_REQUEST_EXPIRY_DELAY {
+				delete(s.requests, id)
+			}
+		}
+	}()
+
+	wg.Wait()
+}

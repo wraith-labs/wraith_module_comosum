@@ -4,6 +4,9 @@ import (
 	"os"
 	"strconv"
 	"sync/atomic"
+	"time"
+
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 )
 
 const (
@@ -11,6 +14,10 @@ const (
 	DEFAULT_PANEL_ADMIN_TOKEN = "wraith!"
 
 	STARTING_ATTEMPTS_UNTIL_LOCKOUT = 5
+
+	STATE_CLEANUP_INTERVAL     = 30 * time.Second
+	STATE_CLIENT_EXPIRY_DELAY  = proto.HEARTBEAT_MARK_DEAD_DELAY
+	STATE_REQUEST_EXPIRY_DELAY = 10 * time.Minute
 )
 
 type Config struct {

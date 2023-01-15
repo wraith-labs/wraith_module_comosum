@@ -105,6 +105,56 @@ func main() {
 					}
 
 					handleAbout(w)
+				case "send":
+					// Require auth as admin.
+					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A) {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+
+					// Get the data from the request body.
+					reqbody, err := io.ReadAll(r.Body)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
+					// Parse the request body.
+					reqdata := sendRequest{}
+					err = json.Unmarshal(reqbody, &reqdata)
+					if err != nil {
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
+
+					// Prepare the packet to be sent to client.
+					req := s.Request(reqdata.Target, proto.PacketReq{
+						Payload: struct {
+							Read    []string
+							Write   map[string]interface{}
+							ListMem bool
+						}{
+							Read:    reqdata.Payload.Read,
+							Write:   reqdata.Payload.Write,
+							ListMem: reqdata.Payload.ListMem,
+						},
+						Conditions: reqdata.Conditions,
+					})
+					packetData, err := proto.Marshal(&req, pineconeId)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
+					// Send the packet to client.
+					pm.Send(context.Background(), proto.Packet{
+						Peer:   reqdata.Target,
+						Method: http.MethodPost,
+						Route:  proto.ROUTE_REQUEST,
+						Data:   packetData,
+					})
+
+					w.WriteHeader(http.StatusNoContent)
 				case "checkauth":
 					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
 						w.WriteHeader(http.StatusUnauthorized)

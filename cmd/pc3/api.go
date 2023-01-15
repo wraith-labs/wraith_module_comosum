@@ -19,6 +19,16 @@ type authSuccessResponse struct {
 	Access authStatus `json:"access"`
 }
 
+type sendRequest struct {
+	Target  string `json:"target"`
+	Payload struct {
+		Read    []string               `json:"read"`
+		Write   map[string]interface{} `json:"write"`
+		ListMem bool                   `json:"listMem"`
+	} `json:"payload"`
+	Conditions struct{} `json:"conditions"`
+}
+
 func handleAbout(w http.ResponseWriter) {
 	// Collect necessary information.
 	buildinfo, _ := debug.ReadBuildInfo()

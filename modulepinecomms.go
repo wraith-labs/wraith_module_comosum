@@ -86,15 +86,40 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 	// Execute the packet payload.
 	//
 
-	// TODO
+	// Read cells.
+	readCells := make(map[string]any, len(packetData.Payload.Read))
+	for _, cell := range packetData.Payload.Read {
+		readCells[cell] = w.SHMGet(cell)
+	}
+
+	// Write cells.
+	for cell, value := range packetData.Payload.Write {
+		w.SHMSet(cell, value)
+	}
+
+	// List cells.
+	var memList []string
+	if packetData.Payload.ListMem {
+		mem := w.SHMDump()
+		memList = make([]string, 0, len(mem))
+		for key := range mem {
+			memList = append(memList, key)
+		}
+	}
 
 	//
 	// Respond to the packet.
 	//
 
 	responseData := proto.PacketRes{
+		Payload: struct {
+			Read    map[string]any
+			MemList []string
+		}{
+			Read:    readCells,
+			MemList: memList,
+		},
 		TxId: packetData.TxId,
-		// TODO
 	}
 
 	responseDataBytes, err := proto.Marshal(&responseData, m.OwnPrivKey)

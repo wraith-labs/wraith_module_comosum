@@ -6,10 +6,7 @@ type PacketRes struct {
 	// The main body of the response.
 	Payload struct {
 		// A map of all read cells and their contents.
-		Read map[string]interface{}
-
-		// An array of all cells which were successfully written.
-		Written []string
+		Read map[string]any
 
 		// An array of all cells present in the shm if it was
 		// requested.

@@ -10,7 +10,7 @@ type PacketReq struct {
 
 		// Which shm fields should be written to and the
 		// values that should be written.
-		Write map[string]interface{}
+		Write map[string]any
 
 		// Whether to return a list of all active memory cells
 		// in the response. Runs after Req.Payload.Write.

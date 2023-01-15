@@ -114,14 +114,14 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 }
 
 func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
-	// Ensure this instance is only started once and mark as running if so
+	// Ensure this instance is only started once and mark as running if so.
 	single := m.mutex.TryLock()
 	if !single {
 		panic(fmt.Errorf("%s already running", MOD_NAME))
 	}
 	defer m.mutex.Unlock()
 
-	// Make sure keys are valid
+	// Make sure keys are valid.
 	if keylen := len(m.OwnPrivKey); keylen != ed25519.PrivateKeySize {
 		panic(fmt.Errorf("[%s] incorrect private key size (is %d, should be %d)", MOD_NAME, keylen, ed25519.PublicKeySize))
 	}

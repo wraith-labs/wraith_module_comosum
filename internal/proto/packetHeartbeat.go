@@ -11,6 +11,9 @@ type PacketHeartbeat struct {
 	// The time when this Wraith was initialised.
 	InitTime time.Time
 
+	// A list of the names of modules installed in this Wraith.
+	Modules []string
+
 	// The operating system Wraith is running on.
 	HostOS string
 

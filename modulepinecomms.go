@@ -37,8 +37,8 @@ type ModulePinecomms struct {
 
 	OwnPrivKey   ed25519.PrivateKey
 	AdminPubKey  ed25519.PublicKey
-	ListenTcp    bool
-	ListenWs     bool
+	ListenTcp    string
+	ListenWs     string
 	UseMulticast bool
 	StaticPeers  []string
 }
@@ -137,7 +137,8 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	//
 
 	pm.SetPineconeIdentity(m.OwnPrivKey)
-	pm.SetInboundAddr(":0")
+	pm.SetInboundAddr(m.ListenTcp)
+	pm.SetWebserverAddr(m.ListenWs)
 	pm.SetUseMulticast(m.UseMulticast)
 	pm.SetStaticPeers(m.StaticPeers)
 

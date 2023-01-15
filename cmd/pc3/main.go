@@ -80,6 +80,9 @@ func main() {
 	// Main body.
 	//
 
+	// Create a state storage struct.
+	s := MkState()
+
 	// Use pmanager non-pinecone webserver to host web UI and an API to communicate with it.
 	ui, err := fs.Sub(ui, "ui/dist")
 	if err != nil {
@@ -186,14 +189,28 @@ mainloop:
 				// This shouldn't happen, but if the peer public key is
 				// malformed then we have no choice but to ignore the
 				// packet.
-				continue
+				continue mainloop
 			}
 
 			switch packet.Route {
 			case proto.ROUTE_HEARTBEAT:
 				packetData := proto.PacketHeartbeat{}
-				proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
-				fmt.Printf("%v\n", packetData)
+				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
+				if err != nil {
+					// The packet data is malformed, there is nothing more we
+					// can do.
+					continue mainloop
+				}
+				s.Heartbeat(packet.Peer, packetData)
+			case proto.ROUTE_RESPONSE:
+				packetData := proto.PacketRes{}
+				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
+				if err != nil {
+					// The packet data is malformed, there is nothing more we
+					// can do.
+					continue mainloop
+				}
+				s.Response(packetData)
 			}
 		}
 	}

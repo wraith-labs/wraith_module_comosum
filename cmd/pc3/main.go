@@ -210,7 +210,7 @@ mainloop:
 					// can do.
 					continue mainloop
 				}
-				s.Response(packetData)
+				s.Response(packet.Peer, packetData)
 			}
 		}
 	}

@@ -22,6 +22,8 @@ type client struct {
 }
 
 type request struct {
+	target string
+
 	requestTime time.Time
 	request     proto.PacketReq
 
@@ -51,7 +53,7 @@ func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 }
 
 // Save a request and generate a TxId.
-func (s *state) Request(req proto.PacketReq) proto.PacketReq {
+func (s *state) Request(dst string, req proto.PacketReq) proto.PacketReq {
 	reqTxId := uuid.NewString()
 	req.TxId = reqTxId
 
@@ -59,6 +61,7 @@ func (s *state) Request(req proto.PacketReq) proto.PacketReq {
 	defer s.requestsMutex.Unlock()
 
 	s.requests[reqTxId] = request{
+		target:      dst,
 		requestTime: time.Now(),
 		request:     req,
 	}
@@ -67,11 +70,11 @@ func (s *state) Request(req proto.PacketReq) proto.PacketReq {
 }
 
 // Save a response to a request.
-func (s *state) Response(res proto.PacketRes) {
+func (s *state) Response(src string, res proto.PacketRes) {
 	s.requestsMutex.Lock()
 	defer s.requestsMutex.Unlock()
 
-	if req, ok := s.requests[res.TxId]; ok {
+	if req, ok := s.requests[res.TxId]; ok && src == req.target && req.responseTime.IsZero() {
 		req.responseTime = time.Now()
 		req.response = res
 		s.requests[res.TxId] = req

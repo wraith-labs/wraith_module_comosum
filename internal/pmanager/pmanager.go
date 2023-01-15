@@ -109,7 +109,7 @@ func (pm *manager) Start() {
 			// Read the payload from request body.
 			data, err := io.ReadAll(r.Body)
 			if err != nil {
-				w.WriteHeader(400)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
@@ -122,7 +122,7 @@ func (pm *manager) Start() {
 			}
 
 			// Respond so the requester doesn't have to wait for the queue to empty.
-			w.WriteHeader(200)
+			w.WriteHeader(http.StatusNoContent)
 
 			// Add to the queue.
 			pm.rxq <- p

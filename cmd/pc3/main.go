@@ -201,7 +201,7 @@ mainloop:
 					// can do.
 					continue mainloop
 				}
-				s.Heartbeat(packet.Peer, packetData)
+				go s.Heartbeat(packet.Peer, packetData)
 			case proto.ROUTE_RESPONSE:
 				packetData := proto.PacketRes{}
 				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
@@ -210,7 +210,7 @@ mainloop:
 					// can do.
 					continue mainloop
 				}
-				s.Response(packet.Peer, packetData)
+				go s.Response(packet.Peer, packetData)
 			}
 		}
 	}

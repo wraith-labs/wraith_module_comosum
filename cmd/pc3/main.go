@@ -97,6 +97,20 @@ func main() {
 				path := strings.TrimPrefix(r.URL.EscapedPath(), "/X/")
 
 				switch path {
+				case "checkauth":
+					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					w.WriteHeader(http.StatusNoContent)
+				case "clients":
+					// Require auth.
+					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+
+					handleClients(r, w, s)
 				case "about":
 					// Require auth.
 					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
@@ -154,12 +168,6 @@ func main() {
 						Data:   packetData,
 					})
 
-					w.WriteHeader(http.StatusNoContent)
-				case "checkauth":
-					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-						w.WriteHeader(http.StatusUnauthorized)
-						return
-					}
 					w.WriteHeader(http.StatusNoContent)
 				case "auth":
 					// Make sure we haven't exceeded the limit for failed logins.

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/user"
@@ -22,6 +23,11 @@ type authSuccessResponse struct {
 	Access authStatus `json:"access"`
 }
 
+type clientsRequest struct {
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+}
+
 type sendRequest struct {
 	Target  string `json:"target"`
 	Payload struct {
@@ -30,6 +36,39 @@ type sendRequest struct {
 		ListMem bool                   `json:"listMem"`
 	} `json:"payload"`
 	Conditions struct{} `json:"conditions"`
+}
+
+func handleClients(r *http.Request, w http.ResponseWriter, s *state) {
+	// Pull necessary information out of the request.
+	// Get the data from the request body.
+	reqbody, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Parse the request body.
+	reqdata := clientsRequest{}
+	err = json.Unmarshal(reqbody, &reqdata)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Collect necessary information.
+	clients, totalClients := s.GetClients(reqdata.Offset, reqdata.Limit)
+
+	// Build response data.
+	data, err := json.Marshal(map[string]any{
+		"clients": clients,
+		"total":   totalClients,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("error while generating `clients` API response: %v", err))
+	}
+
+	// Send!
+	w.Write(data)
 }
 
 func handleAbout(w http.ResponseWriter) {

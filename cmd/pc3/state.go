@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"sync"
 	"time"
 
@@ -113,4 +114,36 @@ func (s *state) Prune() {
 	}()
 
 	wg.Wait()
+}
+
+func (s *state) GetClients(offset int, limit int) (map[string]client, int) {
+	s.clientsMutex.Lock()
+	defer s.clientsMutex.Unlock()
+
+	clientsLength := len(s.clients)
+
+	if offset > clientsLength {
+		return map[string]client{}, clientsLength
+	}
+
+	length := limit
+	if limit > clientsLength {
+		length = clientsLength
+	}
+
+	sortedKeys := make([]string, offset+length)
+	i := 0
+	for k := range s.clients {
+		sortedKeys[i] = k
+		i++
+	}
+	sort.Strings(sortedKeys)
+
+	wantedKeys := sortedKeys[offset:]
+	clientsCopy := make(map[string]client, len(wantedKeys))
+	for _, k := range wantedKeys {
+		clientsCopy[k] = s.clients[k]
+	}
+
+	return clientsCopy, clientsLength
 }

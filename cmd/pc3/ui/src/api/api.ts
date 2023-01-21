@@ -3,6 +3,7 @@ import { sha512 } from './helpers'
 const API_PATH_BASE = 'X/'
 const API_PATH_AUTH = API_PATH_BASE+'auth'
 const API_PATH_CHECKAUTH = API_PATH_BASE+'checkauth'
+const API_PATH_CLIENTS = API_PATH_BASE+'clients'
 const API_PATH_ABOUT = API_PATH_BASE+'about'
 
 export default class API {
@@ -137,9 +138,20 @@ export default class API {
         return true
     }
 
+    async fetchClients(offset: number, limit: number) {
+        const res = await this.apifetch(API_PATH_CLIENTS, {
+            method: 'POST',
+            body: JSON.stringify({
+                offset,
+                limit
+            })
+        })
+        return res.json()
+    }
+
     async fetchAbout() {
         const res = await this.apifetch(API_PATH_ABOUT)
-        return await res.json()
+        return res.json()
     }
 
 }

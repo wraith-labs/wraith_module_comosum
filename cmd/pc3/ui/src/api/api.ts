@@ -135,6 +135,9 @@ export default class API {
             return false
         }
 
+        // Prevents an error log to console.
+        await res.blob()
+
         return true
     }
 

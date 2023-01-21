@@ -18,8 +18,8 @@ func MkState() *state {
 }
 
 type client struct {
-	lastHeartbeatTime time.Time
-	lastHeartbeat     proto.PacketHeartbeat
+	LastHeartbeatTime time.Time             `json:"lastHeartbeatTime"`
+	LastHeartbeat     proto.PacketHeartbeat `json:"lastHeartbeat"`
 }
 
 type request struct {
@@ -48,8 +48,8 @@ func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 	defer s.clientsMutex.Unlock()
 
 	s.clients[src] = client{
-		lastHeartbeatTime: time.Now(),
-		lastHeartbeat:     hb,
+		LastHeartbeatTime: time.Now(),
+		LastHeartbeat:     hb,
 	}
 }
 
@@ -94,7 +94,7 @@ func (s *state) Prune() {
 		defer s.clientsMutex.Unlock()
 
 		for id, c := range s.clients {
-			if time.Since(c.lastHeartbeatTime) > proto.HEARTBEAT_MARK_DEAD_DELAY {
+			if time.Since(c.LastHeartbeatTime) > proto.HEARTBEAT_MARK_DEAD_DELAY {
 				delete(s.clients, id)
 			}
 		}

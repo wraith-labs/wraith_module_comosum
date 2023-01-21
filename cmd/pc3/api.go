@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"os/user"
+	"runtime"
 	"runtime/debug"
 	"time"
 )
@@ -33,9 +36,21 @@ func handleAbout(w http.ResponseWriter) {
 	// Collect necessary information.
 	buildinfo, _ := debug.ReadBuildInfo()
 
+	currentUser, _ := user.Current()
+	binaryPath, _ := os.Executable()
+	systemInfo := map[string]string{
+		"os":              runtime.GOOS,
+		"arch":            runtime.GOARCH,
+		"currentTime":     time.Now().String(),
+		"binaryPath":      binaryPath,
+		"runningUserName": currentUser.Username,
+		"runningUserId":   currentUser.Uid,
+	}
+
 	// Build response data.
 	data, err := json.Marshal(map[string]any{
-		"build": buildinfo,
+		"build":  buildinfo,
+		"system": systemInfo,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("error while generating `about` API response: %v", err))

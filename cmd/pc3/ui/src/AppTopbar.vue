@@ -21,7 +21,7 @@
 				</button>
 			</li>
 			<li>
-				<button class="p-link layout-topbar-button" onclick="signout">
+				<button class="p-link layout-topbar-button" @click="signout()">
 					<i class="pi pi-sign-out"></i>
 					<span>Sign Out</span>
 				</button>

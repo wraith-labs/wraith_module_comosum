@@ -18,15 +18,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
+import { defineComponent } from 'vue'
 import API from '../../api/api'
 
 export default defineComponent({
 	data() {
 		return {
 			api: new API(),
-			aboutBuild: ref('no build info'),
-			aboutSystem: ref('no system info'),
+			aboutBuild: 'no build info',
+			aboutSystem: 'no system info',
 			timer: 0
 		}
 	},

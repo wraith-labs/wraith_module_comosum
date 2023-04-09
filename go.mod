@@ -3,7 +3,7 @@ module dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms
 go 1.19
 
 require (
-	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230121074233-c50867345445
+	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230409043033-411130180361
 	github.com/cristalhq/jwt/v4 v4.0.2
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/uuid v1.3.0

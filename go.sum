@@ -1,5 +1,5 @@
-dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230121074233-c50867345445 h1:nc/60LIBauF4CvDIPvCi84i1zveg6bYvHM8piF1U6h8=
-dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230121074233-c50867345445/go.mod h1:tfvMBO2oNvKde+WLzyEenSq4bPQD6fGvwn7aVuAwd2c=
+dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230409043033-411130180361 h1:TT3Ri62hI6ys+Skay7m9KRYyTCveOYn8oeCOFfHnIoI=
+dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230409043033-411130180361/go.mod h1:s0QnzsQqZXDe6qqAhO83GbokrDeRL4O4Vhje4S2t1kM=
 github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979 h1:WndgpSW13S32VLQ3ugUxx2EnnWmgba1kCqPkd4Gk1yQ=
 github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979/go.mod h1:6Lkn+/zJilRMsKmbmG1RPoamiArC6HS73xbwRyp3UyI=
 github.com/cristalhq/jwt/v4 v4.0.2 h1:g/AD3h0VicDamtlM70GWGElp8kssQEv+5wYd7L9WOhU=

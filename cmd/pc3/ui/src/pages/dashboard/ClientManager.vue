@@ -3,19 +3,6 @@
 		<div class="col-12">
 			<div class="card">
 				<Toast/>
-				<Toolbar class="mb-4">
-					<template v-slot:start>
-						<div class="my-2">
-							<Button label="New" icon="pi pi-plus" class="p-button-success mr-2" @click="" />
-							<Button label="Delete" icon="pi pi-trash" class="p-button-danger" @click="" :disabled="!clientsSelected || !clientsSelected.length" />
-						</div>
-					</template>
-
-					<template v-slot:end>
-						<FileUpload mode="basic" accept="image/*" :maxFileSize="1000000" label="Import" chooseLabel="Import" class="mr-2 inline-block" />
-						<Button label="Export" icon="pi pi-upload" class="p-button-help" @click="" />
-					</template>
-				</Toolbar>
 
 				<DataTable ref="dt" :value="clients" v-model:selection="clientsSelected" dataKey="address" :paginator="true" :rows="clientsCount" :filters="filters"
 							paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown" :rowsPerPageOptions="[10, 25, 50, 100]"
@@ -37,58 +24,58 @@
 							{{slotProps.data.address}}
 						</template>
 					</Column>
-					<Column field="" header="Strain ID" headerStyle="width:14%; min-width:10rem;">
+					<Column field="strain" header="Strain ID" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Strain ID</span>
 							{{slotProps.data.lastHeartbeat.StrainId}}
 						</template>
 					</Column>
-					<Column field="name" header="Init Time" headerStyle="width:14%; min-width:10rem;">
+					<Column field="inittime" header="Init Time" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Init Time</span>
 							{{slotProps.data.lastHeartbeat.InitTime}}
 						</template>
 					</Column>
-					<Column header="Modules" headerStyle="width:14%; min-width:10rem;">
+					<Column field="modules" header="Modules" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Modules</span>
-							<img :src="'images/product/' + slotProps.data.image" :alt="slotProps.data.image" class="shadow-2" width="100" />
+							{{slotProps.data.lastHeartbeat.Modules}}
 						</template>
 					</Column>
-					<Column field="price" header="Host OS" headerStyle="width:14%; min-width:8rem;">
+					<Column field="hostos" header="Host OS" headerStyle="width:14%; min-width:8rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Host OS</span>
-							{{1}}
+							{{slotProps.data.lastHeartbeat.HostOS}}
 						</template>
 					</Column>
-					<Column field="category" header="Host Arch" headerStyle="width:14%; min-width:10rem;">
+					<Column field="hostarch" header="Host Arch" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Host Arch</span>
-							{{1}}
+							{{slotProps.data.lastHeartbeat.HostArch}}
 						</template>
 					</Column>
-					<Column field="rating" header="Hostname" headerStyle="width:14%; min-width:10rem;">
+					<Column field="hostname" header="Hostname" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Hostname</span>
-							<Rating :modelValue="slotProps.data.rating" :readonly="true" :cancel="false" />
+							{{slotProps.data.lastHeartbeat.Hostname}}
 						</template>
 					</Column>
-					<Column field="inventoryStatus" header="Host User" headerStyle="width:14%; min-width:10rem;">
+					<Column field="hostuser" header="Host User" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Host User</span>
-							<span :class="'product-badge status-' + (slotProps.data.inventoryStatus ? slotProps.data.inventoryStatus.toLowerCase() : '')">{{slotProps.data.inventoryStatus}}</span>
+							{{slotProps.data.lastHeartbeat.HostUser}}
 						</template>
 					</Column>
-					<Column field="inventoryStatus" header="Host User ID" headerStyle="width:14%; min-width:10rem;">
+					<Column field="hostuid" header="Host User ID" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Host User ID</span>
-							<span :class="'product-badge status-' + (slotProps.data.inventoryStatus ? slotProps.data.inventoryStatus.toLowerCase() : '')">{{slotProps.data.inventoryStatus}}</span>
+							{{slotProps.data.lastHeartbeat.HostUserId}}
 						</template>
 					</Column>
-					<Column field="inventoryStatus" header="Errors" headerStyle="width:14%; min-width:10rem;">
+					<Column field="errors" header="Errors" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Errors</span>
-							<span :class="'product-badge status-' + (slotProps.data.inventoryStatus ? slotProps.data.inventoryStatus.toLowerCase() : '')">{{slotProps.data.inventoryStatus}}</span>
+							{{slotProps.data.lastHeartbeat.Errors}}
 						</template>
 					</Column>
 					<Column headerStyle="min-width:10rem;">

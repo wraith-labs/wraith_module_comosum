@@ -1,15 +1,15 @@
 module dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms
 
-go 1.19
+go 1.20
 
 require (
-	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230409043033-411130180361
+	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230412033239-573206620cac
 	github.com/cristalhq/jwt/v4 v4.0.2
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/matrix-org/pinecone v0.0.0-20221128101439-6e3494efdfb3
+	github.com/matrix-org/pinecone v0.11.1-0.20230210171230-8c3b24f2649a
 )
 
 require (
@@ -18,10 +18,11 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20230406165453-00490a63f317 // indirect
 	github.com/klauspost/compress v1.16.4 // indirect
-	github.com/lucas-clemente/quic-go v0.31.1 // indirect
-	github.com/marten-seemann/qtls-go1-18 v0.1.4 // indirect
-	github.com/marten-seemann/qtls-go1-19 v0.1.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.2 // indirect
+	github.com/quic-go/qtls-go1-18 v0.2.0 // indirect
+	github.com/quic-go/qtls-go1-19 v0.2.0 // indirect
+	github.com/quic-go/qtls-go1-20 v0.1.0 // indirect
+	github.com/quic-go/quic-go v0.32.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.8.0 // indirect

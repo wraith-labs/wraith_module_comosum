@@ -76,9 +76,9 @@ func (l *clientList) Get(id string) (*client, bool) {
 	return c, ok
 }
 
-func (l *clientList) GetPage(offset, limit int) []*client {
-	if offset > len(l.clients) {
-		return []*client{}
+func (l *clientList) GetPage(offset, limit int) ([]*client, int) {
+	if totalClients := len(l.clients); offset > totalClients {
+		return []*client{}, totalClients
 	}
 
 	// If the remainder of the client list after the offset is
@@ -101,7 +101,7 @@ func (l *clientList) GetPage(offset, limit int) []*client {
 
 		current = current.next
 	}
-	return page
+	return page, len(l.clients)
 }
 
 type request struct {
@@ -199,7 +199,7 @@ func (s *state) Prune() {
 	wg.Wait()
 }
 
-func (s *state) GetClients(offset, limit int) []*client {
+func (s *state) GetClients(offset, limit int) ([]*client, int) {
 	s.clientsMutex.Lock()
 	defer s.clientsMutex.Unlock()
 

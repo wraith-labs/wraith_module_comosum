@@ -61,12 +61,12 @@ func handleClients(r *http.Request, w http.ResponseWriter, s *state) {
 	}
 
 	// Collect necessary information.
-	clients := s.GetClients(reqdata.Offset, reqdata.Limit)
+	clients, totalClients := s.GetClients(reqdata.Offset, reqdata.Limit)
 
 	// Build response data.
 	data, err := json.Marshal(map[string]any{
 		"clients": clients,
-		"total":   len(clients),
+		"total":   totalClients,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("error while generating `clients` API response: %v", err))

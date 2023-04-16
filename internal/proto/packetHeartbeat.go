@@ -29,6 +29,6 @@ type PacketHeartbeat struct {
 	// The ID of the user under which Wraith is running.
 	HostUserId string
 
-	// A list of errors the Wraith has encountered.
-	Errors []error
+	// A count of errors the Wraith has encountered.
+	Errors int
 }

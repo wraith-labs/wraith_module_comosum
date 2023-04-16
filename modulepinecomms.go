@@ -218,7 +218,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 					Hostname:   hostname,
 					HostUser:   username,
 					HostUserId: userId,
-					Errors:     errs,
+					Errors:     len(errs),
 				}
 				heartbeatBytes, err := proto.Marshal(&heartbeatData, m.OwnPrivKey)
 				if err != nil {

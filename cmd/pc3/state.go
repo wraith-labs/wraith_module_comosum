@@ -37,15 +37,17 @@ type clientList struct {
 
 func (l *clientList) Append(id string, c client) {
 	c.prev, c.next = nil, nil
+	if _, exists := l.clients[id]; !exists {
+		if l.head == nil {
+			l.head = &c
+		}
+		if l.tail != nil {
+			l.tail.next = &c
+			c.prev = l.tail
+		}
+		l.tail = &c
+	}
 	l.clients[id] = &c
-	if l.head == nil {
-		l.head = &c
-	}
-	if l.tail != nil {
-		l.tail.next = &c
-		c.prev = l.tail
-	}
-	l.tail = &c
 }
 
 func (l *clientList) Delete(id string) {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"sort"
 	"sync"
 	"time"
 
@@ -11,15 +10,91 @@ import (
 
 func MkState() *state {
 	s := state{
-		clients:  map[string]client{},
+		clients: clientList{
+			clients: map[string]*client{},
+		},
 		requests: map[string]request{},
 	}
 	return &s
 }
 
 type client struct {
+	Address           string                `json:"address"`
 	LastHeartbeatTime time.Time             `json:"lastHeartbeatTime"`
 	LastHeartbeat     proto.PacketHeartbeat `json:"lastHeartbeat"`
+
+	prev *client
+	next *client
+}
+
+// This data structure allows for storage of clients while allowing for efficient ordering
+// and therefore pagination, deletion and addition of clients, and accessing a client by ID.
+type clientList struct {
+	head    *client
+	tail    *client
+	clients map[string]*client
+}
+
+func (l *clientList) Append(id string, c client) {
+	c.prev, c.next = nil, nil
+	l.clients[id] = &c
+	if l.head == nil {
+		l.head = &c
+	}
+	if l.tail != nil {
+		l.tail.next = &c
+		c.prev = l.tail
+	}
+	l.tail = &c
+}
+
+func (l *clientList) Delete(id string) {
+	c, ok := l.clients[id]
+	if !ok {
+		return
+	}
+
+	if c.prev == nil {
+		// This is the first element. Make the next one first.
+		l.head = c.next
+	} else {
+		c.prev.next = c.next
+	}
+
+	if c.next == nil {
+		// This is the last element. Make the previous one last.
+		l.tail = c.prev
+	} else {
+		c.next.prev = c.prev
+	}
+
+	delete(l.clients, id)
+}
+
+func (l *clientList) Get(id string) (*client, bool) {
+	c, ok := l.clients[id]
+	return c, ok
+}
+
+func (l *clientList) GetPage(offset, limit int) []*client {
+	if offset > len(l.clients) {
+		return []*client{}
+	}
+
+	page := make([]*client, limit)
+	current := l.head
+	for i := 0; i < offset+limit; i++ {
+		if current == nil {
+			break
+		}
+
+		if i > offset && i < offset+limit {
+			page = append(page, current)
+		}
+
+		current = current.next
+	}
+	return page
 }
 
 type request struct {
@@ -34,7 +109,7 @@ type request struct {
 
 type state struct {
 	// List of "connected" Wraith clients.
-	clients      map[string]client
+	clients      clientList
 	clientsMutex sync.RWMutex
 
 	// List of request/response pairs.
@@ -47,10 +122,11 @@ func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 	s.clientsMutex.Lock()
 	defer s.clientsMutex.Unlock()
 
-	s.clients[src] = client{
+	s.clients.Append(src, client{
+		Address:           src,
 		LastHeartbeatTime: time.Now(),
 		LastHeartbeat:     hb,
-	}
+	})
 }
 
 // Save a request and generate a TxId.
@@ -93,9 +169,9 @@ func (s *state) Prune() {
 		s.clientsMutex.Lock()
 		defer s.clientsMutex.Unlock()
 
-		for id, c := range s.clients {
+		for id, c := range s.clients.clients {
 			if time.Since(c.LastHeartbeatTime) > proto.HEARTBEAT_MARK_DEAD_DELAY {
-				delete(s.clients, id)
+				s.clients.Delete(id)
 			}
 		}
 	}()
@@ -116,34 +192,9 @@ func (s *state) Prune() {
 	wg.Wait()
 }
 
-func (s *state) GetClients(offset int, limit int) (map[string]client, int) {
+func (s *state) GetClients(offset, limit int) []*client {
 	s.clientsMutex.Lock()
 	defer s.clientsMutex.Unlock()
 
-	clientsLength := len(s.clients)
-
-	if offset > clientsLength {
-		return map[string]client{}, clientsLength
-	}
-
-	length := limit
-	if limit > clientsLength {
-		length = clientsLength
-	}
-
-	sortedKeys := make([]string, offset+length)
-	i := 0
-	for k := range s.clients {
-		sortedKeys[i] = k
-		i++
-	}
-	sort.Strings(sortedKeys)
-
-	wantedKeys := sortedKeys[offset:]
-	clientsCopy := make(map[string]client, len(wantedKeys))
-	for _, k := range wantedKeys {
-		clientsCopy[k] = s.clients[k]
-	}
-
-	return clientsCopy, clientsLength
+	return s.clients.GetPage(offset, limit)
 }

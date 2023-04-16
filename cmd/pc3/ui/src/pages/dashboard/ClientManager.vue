@@ -17,8 +17,8 @@
 					</template>
 				</Toolbar>
 
-				<DataTable ref="dt" :value="clients" v-model:selection="clientsSelected" dataKey="id" :paginator="true" :rows="10" :filters="filters"
-							paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown" :rowsPerPageOptions="[5,10,25]"
+				<DataTable ref="dt" :value="clients" v-model:selection="clientsSelected" dataKey="address" :paginator="true" :rows="clientsCount" :filters="filters"
+							paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown" :rowsPerPageOptions="[10, 25, 50, 100]"
 							currentPageReportTemplate="Showing {first} to {last} of {totalRecords} clients" responsiveLayout="scroll">
 					<template #header>
 						<div class="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
@@ -31,16 +31,22 @@
 					</template>
 
 					<Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
-					<Column field="code" header="Strain ID" headerStyle="width:14%; min-width:10rem;">
+					<Column field="address" header="Address" headerStyle="width:14%; min-width:10rem;">
+						<template #body="slotProps">
+							<span class="p-column-title">Address</span>
+							{{slotProps.data.address}}
+						</template>
+					</Column>
+					<Column field="" header="Strain ID" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Strain ID</span>
-							{{slotProps.data.code}}
+							{{slotProps.data.lastHeartbeat.StrainId}}
 						</template>
 					</Column>
 					<Column field="name" header="Init Time" headerStyle="width:14%; min-width:10rem;">
 						<template #body="slotProps">
 							<span class="p-column-title">Init Time</span>
-							{{slotProps.data.name}}
+							{{slotProps.data.lastHeartbeat.InitTime}}
 						</template>
 					</Column>
 					<Column header="Modules" headerStyle="width:14%; min-width:10rem;">
@@ -102,12 +108,13 @@
 import { defineComponent } from 'vue'
 import { FilterMatchMode } from 'primevue/api'
 import API from '../../api/api'
+import { Client } from '../../api/types'
 
 export default defineComponent({
 	data() {
 		return {
 			api: new API(),
-			clients: [],
+			clients: [] as Client[],
 			clientsSelected: [],
 			clientsCount: 0,
 			clientsOffset: 0,

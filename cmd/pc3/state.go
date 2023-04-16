@@ -81,6 +81,13 @@ func (l *clientList) GetPage(offset, limit int) []*client {
 		return []*client{}
 	}
 
+	// If the remainder of the client list after the offset is
+	// smaller than the limit, reduce the limit to the size of that
+	// remainder to avoid nulls in the returned data.
+	if maxLimit := len(l.clients) - offset; maxLimit < limit {
+		limit = maxLimit
+	}
+
 	page := make([]*client, limit)
 	current := l.head
 	for i := 0; i < offset+limit; i++ {
@@ -88,8 +95,8 @@ func (l *clientList) GetPage(offset, limit int) []*client {
 			break
 		}
 
-		if i > offset && i < offset+limit {
-			page = append(page, current)
+		if i >= offset && i < offset+limit {
+			page[i-offset] = current
 		}
 
 		current = current.next

@@ -55,6 +55,11 @@ func handleClients(r *http.Request, w http.ResponseWriter, s *state) {
 		return
 	}
 
+	// Make sure the requested page does not exceed the max.
+	if reqdata.Limit > MAX_DATA_PAGE_SIZE {
+		reqdata.Limit = MAX_DATA_PAGE_SIZE
+	}
+
 	// Collect necessary information.
 	clients := s.GetClients(reqdata.Offset, reqdata.Limit)
 

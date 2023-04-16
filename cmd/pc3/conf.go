@@ -18,6 +18,8 @@ const (
 	STATE_CLEANUP_INTERVAL     = 30 * time.Second
 	STATE_CLIENT_EXPIRY_DELAY  = proto.HEARTBEAT_MARK_DEAD_DELAY
 	STATE_REQUEST_EXPIRY_DELAY = 10 * time.Minute
+
+	MAX_DATA_PAGE_SIZE = 200
 )
 
 type Config struct {

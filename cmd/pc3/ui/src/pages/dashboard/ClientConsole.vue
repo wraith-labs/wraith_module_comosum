@@ -3,14 +3,21 @@
 		<div class="col-12">
 			<div class="card">
 				<h5>Console Page</h5>
-				<p>Use this page to start from scratch and place your custom content.</p>
+				<p>{{ store.targets }}</p>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script lang="ts">
-export default {
+import { defineComponent } from 'vue';
+import { store } from '../../state/state'
 
-}
+export default defineComponent({
+	data() {
+		return {
+			store
+		}
+	}
+})
 </script>

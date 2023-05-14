@@ -1,4 +1,5 @@
 export type Client = {
+    address: string,
     lastHeartbeatTime: string,
     lastHeartbeat:{
         "StrainId": string,
@@ -9,6 +10,6 @@ export type Client = {
         "Hostname": string,
         "HostUser": string,
         "HostUserId": string,
-        "Errors": string[] | null
+        "Errors": number
     }
 }

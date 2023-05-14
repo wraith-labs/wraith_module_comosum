@@ -21,11 +21,10 @@
                             placeholder="Enter Token"
                             class="w-full mb-3"
                             inputClass="w-full"
-                            inputStyle="padding:1rem"
-                            :toggleMask="true"
+                            :inputStyle="{ padding: '1rem' }"
                             :feedback="false"
                             :required="true"
-                            @keyup.enter = "signIn"
+                            @keyup.enter="signIn"
                         ></Password>
 
                         <Button label="Sign In" class="w-full p-3 text-xl" :loading="authing" @click="signIn"></button>
@@ -36,13 +35,11 @@
     </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import API from '../api/api';
 
-export default {
-    created() {
-        this.api = new API()
-    },
+export default defineComponent({
     beforeMount() {
         this.api.checkauth().then((authed) => {
             if (authed) {
@@ -52,6 +49,7 @@ export default {
     },
     data() {
         return {
+            api: new API(),
             authing: false,
             token: '',
         }
@@ -61,17 +59,17 @@ export default {
             this.authing = true
             this.api.auth(this.token).then((authed) => {
                 if (authed) {
-                    document.getElementById('token-entry').classList.remove('p-invalid')
+                    document.getElementById('token-entry')?.classList.remove('p-invalid')
                     this.$toast.add({severity:'success', summary: 'Authentication successful', detail:'You will be redirected shortly', life: 3000});
 
                     window.location.hash = '#/'
                 } else {
-                    document.getElementById('token-entry').classList.add('p-invalid')
+                    document.getElementById('token-entry')?.classList.add('p-invalid')
                     this.$toast.add({severity:'error', summary: 'Authentication failed', detail:'Check the console for more details', life: 3000});
                 }
                 this.authing = false
             })
         }
     }
-}
+})
 </script>

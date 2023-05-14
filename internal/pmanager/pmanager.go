@@ -52,6 +52,8 @@ type Manager interface {
 	Stop()
 }
 
+const PROTOCOL_NAME = "wraith-module-pinecomms"
+
 type manager struct {
 	// Once instances ensuring that each method is only executed once at a given time.
 	startOnce   misc.CheckableOnce
@@ -99,7 +101,7 @@ func (pm *manager) Start() {
 
 		// Set up pinecone components.
 		pRouter := pineconeRouter.NewRouter(c.logger, c.pineconeIdentity)
-		pQUIC := pineconeSessions.NewSessions(c.logger, pRouter, []string{"wraith"})
+		pQUIC := pineconeSessions.NewSessions(c.logger, pRouter, []string{PROTOCOL_NAME})
 		pMulticast := pineconeMulticast.NewMulticast(c.logger, pRouter)
 		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
 
@@ -128,7 +130,7 @@ func (pm *manager) Start() {
 			pm.rxq <- p
 		})
 
-		pHTTP := pQUIC.Protocol("wraith").HTTP()
+		pHTTP := pQUIC.Protocol(PROTOCOL_NAME).HTTP()
 		pHTTP.Mux().Handle("/", pMux)
 
 		// Pinecone HTTP server.
@@ -149,7 +151,7 @@ func (pm *manager) Start() {
 		go func() {
 			defer wg.Done()
 
-			pineconeHttpServer.Serve(pQUIC.Protocol("wraith"))
+			pineconeHttpServer.Serve(pQUIC.Protocol(PROTOCOL_NAME))
 		}()
 
 		// Listen for inbound connections if a TCP listener was configured.

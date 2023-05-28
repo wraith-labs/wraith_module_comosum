@@ -1,4 +1,4 @@
-package pmanager
+package radio
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/misc"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
+	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"
@@ -26,7 +27,7 @@ import (
 	pineconeSessions "github.com/matrix-org/pinecone/sessions"
 )
 
-type Manager interface {
+type Radio interface {
 	GetInboundAddr() string
 	GetLogger() *log.Logger
 	GetPineconeIdentity() ed25519.PrivateKey
@@ -54,7 +55,7 @@ type Manager interface {
 
 const PROTOCOL_NAME = "wraith-module-pinecomms"
 
-type manager struct {
+type radio struct {
 	// Once instances ensuring that each method is only executed once at a given time.
 	startOnce   misc.CheckableOnce
 	stopOnce    misc.CheckableOnce
@@ -66,13 +67,13 @@ type manager struct {
 	txq     chan proto.Packet
 	rxq     chan proto.Packet
 
-	// A struct of config options for the manager with a lock to make it thread-safe.
+	// A struct of config options for the radio with a lock to make it thread-safe.
 	conf config
 }
 
-// Start the pinecone manager as configured. This blocks while the
-// manager is running but can be started in a goroutine.
-func (pm *manager) Start() {
+// Start the pinecone radio as configured. This blocks while the
+// radio is running but can be started in a goroutine.
+func (pm *radio) Start() {
 	// Reset startOnce when this function exits.
 	defer func() {
 		pm.startOnce = misc.CheckableOnce{}
@@ -81,8 +82,8 @@ func (pm *manager) Start() {
 	// Only execute this once at a time.
 	pm.startOnce.Do(func() {
 		// Init some internal communication channels.
-		managerInstance.reqExit = make(chan struct{})
-		managerInstance.ackExit = make(chan struct{})
+		radioInstance.reqExit = make(chan struct{})
+		radioInstance.ackExit = make(chan struct{})
 
 		// Grab a snapshot of the config (this ensures the
 		// config is never in an inconsistent state when values
@@ -133,18 +134,16 @@ func (pm *manager) Start() {
 		pHTTP := pQUIC.Protocol(PROTOCOL_NAME).HTTP()
 		pHTTP.Mux().Handle("/", pMux)
 
+		app := fiber.New(fiber.Config{
+			DisableStartupMessage:        true,
+			DisablePreParseMultipartForm: true,
+			ReadTimeout:                  10 * time.Second,
+			WriteTimeout:                 10 * time.Second,
+			IdleTimeout:                  10 * time.Second,
+		})
+
 		// Pinecone HTTP server.
-		pineconeHttpServer := http.Server{
-			Addr:         ":0",
-			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  60 * time.Second,
-			BaseContext: func(_ net.Listener) context.Context {
-				return ctx
-			},
-			Handler: pMux,
-		}
+		pineconeHttpServer := app.Server()
 
 		// Start pinecone HTTP server in goroutine.
 		wg.Add(1)
@@ -317,7 +316,7 @@ func (pm *manager) Start() {
 
 		// Tear down pinecone HTTP server.
 		phttpShutdownTimeoutCtx, phttpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
-		pineconeHttpServer.Shutdown(phttpShutdownTimeoutCtx)
+		pineconeHttpServer.ShutdownWithContext(phttpShutdownTimeoutCtx)
 		phttpShutdownTimeoutCtxCancel()
 
 		// Tear down pinecone components.
@@ -337,21 +336,21 @@ func (pm *manager) Start() {
 	})
 }
 
-// Stop the pinecone manager.
-func (pm *manager) Stop() {
+// Stop the pinecone radio.
+func (pm *radio) Stop() {
 	// Reset stopOnce when this function exits.
-	defer func(pm *manager) {
+	defer func(pm *radio) {
 		pm.stopOnce = misc.CheckableOnce{}
 	}(pm)
 
 	// Only execute this once at a time.
 	pm.stopOnce.Do(func() {
-		// Only actually do anything if the manager is running, otherwise
+		// Only actually do anything if the radio is running, otherwise
 		// we'll block forever because nothing would read from the channel.
 		//
-		// Theoretically the manager could exit after our check but before
+		// Theoretically the radio could exit after our check but before
 		// we write to the channel which causes a race and results in a
-		// deadlock. In practice this should be impossible as the manager
+		// deadlock. In practice this should be impossible as the radio
 		// can only exit when this function is called and only one of this
 		// function can run at a time. The guarantee could be made stronger
 		// with locks but this isn't really worth the added complexity.
@@ -364,10 +363,10 @@ func (pm *manager) Stop() {
 	})
 }
 
-// Restart the pinecone manager. Equivalent to calling Stop() and Start().
-func (pm *manager) Restart() {
+// Restart the pinecone radio. Equivalent to calling Stop() and Start().
+func (pm *radio) Restart() {
 	// Reset restartOnce when this function exits.
-	defer func(pm *manager) {
+	defer func(pm *radio) {
 		pm.restartOnce = misc.CheckableOnce{}
 	}(pm)
 
@@ -379,12 +378,12 @@ func (pm *manager) Restart() {
 }
 
 // Send a given packet to a specific peer.
-func (pm *manager) Send(ctx context.Context, p proto.Packet) error {
+func (pm *radio) Send(ctx context.Context, p proto.Packet) error {
 	select {
 	case pm.txq <- p:
 		return nil
 	case <-pm.ackExit:
-		return fmt.Errorf("manager exited while trying to send packet")
+		return fmt.Errorf("radio exited while trying to send packet")
 	case <-ctx.Done():
 		return fmt.Errorf("context cancelled while trying to send packet (%e)", ctx.Err())
 	}
@@ -392,19 +391,19 @@ func (pm *manager) Send(ctx context.Context, p proto.Packet) error {
 
 // Receive incoming packets. Blocks until either a packet is received or
 // the provided context expires.
-func (pm *manager) Recv(ctx context.Context) (proto.Packet, error) {
+func (pm *radio) Recv(ctx context.Context) (proto.Packet, error) {
 	select {
 	case p := <-pm.rxq:
 		return p, nil
 	case <-pm.ackExit:
-		return proto.Packet{}, fmt.Errorf("manager exited while trying to receive packet")
+		return proto.Packet{}, fmt.Errorf("radio exited while trying to receive packet")
 	case <-ctx.Done():
 		return proto.Packet{}, fmt.Errorf("context cancelled while trying to receive packet (%e)", ctx.Err())
 	}
 }
 
 // Receive incoming packets from a channel.
-func (pm *manager) RecvChan(ctx context.Context) chan proto.Packet {
+func (pm *radio) RecvChan(ctx context.Context) chan proto.Packet {
 	c := make(chan proto.Packet)
 	go func() {
 		defer func() {
@@ -421,29 +420,29 @@ func (pm *manager) RecvChan(ctx context.Context) chan proto.Packet {
 	return c
 }
 
-// Check whether the pinecone manager is currently running.
-func (pm *manager) IsRunning() bool {
+// Check whether the pinecone radio is currently running.
+func (pm *radio) IsRunning() bool {
 	return pm.startOnce.Doing()
 }
 
 var initonce sync.Once
-var managerInstance *manager = nil
+var radioInstance *radio = nil
 
-// Get the instance of the pinecone manager. This instance is shared for
+// Get the instance of the pinecone radio. This instance is shared for
 // the entire program and successive calls return the existing instance.
-func GetInstance() Manager {
-	// Create and initialise an instance of manager only once.
+func GetInstance() Radio {
+	// Create and initialise an instance of radio only once.
 	initonce.Do(func() {
 		// Disable quic-go's debug message
 		os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
 
-		managerInstance = &manager{}
+		radioInstance = &radio{}
 
 		// Generate some default options.
 
 		_, randomPineconeIdentity, randomPineconeIdentityErr := ed25519.GenerateKey(nil)
 		if randomPineconeIdentityErr != nil {
-			panic(fmt.Errorf("fatal error while generating pinecone identity for manager defaults: %e", randomPineconeIdentityErr))
+			panic(fmt.Errorf("fatal error while generating pinecone identity for radio defaults: %e", randomPineconeIdentityErr))
 		}
 
 		defaults := configSnapshot{
@@ -460,12 +459,12 @@ func GetInstance() Manager {
 		// Set default config values to ensure that the config is never
 		// in an unusable state and allow for sane options without setting
 		// everything manually.
-		managerInstance.conf.configSnapshot = defaults
+		radioInstance.conf.configSnapshot = defaults
 
 		// Init communication channels.
-		managerInstance.txq = make(chan proto.Packet)
-		managerInstance.rxq = make(chan proto.Packet)
+		radioInstance.txq = make(chan proto.Packet)
+		radioInstance.rxq = make(chan proto.Packet)
 	})
 
-	return managerInstance
+	return radioInstance
 }

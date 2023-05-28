@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/pmanager"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
 )
 
 //go:embed ui/dist/*
@@ -52,22 +52,22 @@ func main() {
 	pineconeId := ed25519.PrivateKey(pineconeIdBytes)
 
 	// Get a struct for managing pinecone connections.
-	pm := pmanager.GetInstance()
+	pr := radio.GetInstance()
 
 	//
 	// Configure pinecone manager.
 	//
 
-	pm.SetPineconeIdentity(pineconeId)
+	pr.SetPineconeIdentity(pineconeId)
 	if c.logPinecone {
-		pm.SetLogger(log.Default())
+		pr.SetLogger(log.Default())
 	}
-	pm.SetInboundAddr(c.pineconeInboundTcpAddr)
-	pm.SetWebserverAddr(c.pineconeInboundWebAddr)
-	pm.SetWebserverDebugPath(c.pineconeDebugEndpoint)
-	pm.SetUseMulticast(c.pineconeUseMulticast)
+	pr.SetInboundAddr(c.pineconeInboundTcpAddr)
+	pr.SetWebserverAddr(c.pineconeInboundWebAddr)
+	pr.SetWebserverDebugPath(c.pineconeDebugEndpoint)
+	pr.SetUseMulticast(c.pineconeUseMulticast)
 	if c.pineconeStaticPeers != "" {
-		pm.SetStaticPeers(strings.Split(c.pineconeStaticPeers, ","))
+		pr.SetStaticPeers(strings.Split(c.pineconeStaticPeers, ","))
 	}
 
 	//
@@ -90,7 +90,7 @@ func main() {
 		panic(err)
 	}
 
-	pm.SetWebserverHandlers([]pmanager.WebserverHandler{
+	pr.SetWebserverHandlers([]radio.WebserverHandler{
 		{
 			Path: "/X/",
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +161,7 @@ func main() {
 					}
 
 					// Send the packet to client.
-					pm.Send(context.Background(), proto.Packet{
+					pr.Send(context.Background(), proto.Packet{
 						Peer:   reqdata.Target,
 						Method: http.MethodPost,
 						Route:  proto.ROUTE_REQUEST,
@@ -228,12 +228,12 @@ func main() {
 	})
 
 	// Start pinecone.
-	go pm.Start()
+	go pr.Start()
 
 	// Start receiving messages.
 	// Background context is okay because the channel will be closed
 	// when the manager exits further down anyway.
-	recv := pm.RecvChan(context.Background())
+	recv := pr.RecvChan(context.Background())
 
 mainloop:
 	for {
@@ -289,7 +289,7 @@ mainloop:
 		os.Exit(1)
 	}()
 
-	pm.Stop()
+	pr.Stop()
 
 	os.Exit(0)
 }

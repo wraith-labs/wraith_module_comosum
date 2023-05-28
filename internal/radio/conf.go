@@ -1,4 +1,4 @@
-package pmanager
+package radio
 
 import (
 	"crypto/ed25519"
@@ -107,49 +107,49 @@ func (c *config) snapshot() configSnapshot {
 // Setters
 //
 
-func (pm *manager) SetPineconeIdentity(u ed25519.PrivateKey) {
+func (pm *radio) SetPineconeIdentity(u ed25519.PrivateKey) {
 	defer pm.conf.autolock()()
 
 	pm.conf.pineconeIdentity = u
 }
 
-func (pm *manager) SetLogger(u *log.Logger) {
+func (pm *radio) SetLogger(u *log.Logger) {
 	defer pm.conf.autolock()()
 
 	pm.conf.logger = u
 }
 
-func (pm *manager) SetInboundAddr(u string) {
+func (pm *radio) SetInboundAddr(u string) {
 	defer pm.conf.autolock()()
 
 	pm.conf.inboundAddr = u
 }
 
-func (pm *manager) SetWebserverAddr(u string) {
+func (pm *radio) SetWebserverAddr(u string) {
 	defer pm.conf.autolock()()
 
 	pm.conf.webserverAddr = u
 }
 
-func (pm *manager) SetWebserverDebugPath(u string) {
+func (pm *radio) SetWebserverDebugPath(u string) {
 	defer pm.conf.autolock()()
 
 	pm.conf.webserverDebugPath = u
 }
 
-func (pm *manager) SetUseMulticast(u bool) {
+func (pm *radio) SetUseMulticast(u bool) {
 	defer pm.conf.autolock()()
 
 	pm.conf.useMulticast = u
 }
 
-func (pm *manager) SetStaticPeers(u []string) {
+func (pm *radio) SetStaticPeers(u []string) {
 	defer pm.conf.autolock()()
 
 	pm.conf.staticPeers = u
 }
 
-func (pm *manager) SetWebserverHandlers(u []WebserverHandler) {
+func (pm *radio) SetWebserverHandlers(u []WebserverHandler) {
 	defer pm.conf.autolock()()
 
 	pm.conf.webserverHandlers = u
@@ -159,49 +159,49 @@ func (pm *manager) SetWebserverHandlers(u []WebserverHandler) {
 // Getters
 //
 
-func (pm *manager) GetPineconeIdentity() ed25519.PrivateKey {
+func (pm *radio) GetPineconeIdentity() ed25519.PrivateKey {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.pineconeIdentity
 }
 
-func (pm *manager) GetLogger() *log.Logger {
+func (pm *radio) GetLogger() *log.Logger {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.logger
 }
 
-func (pm *manager) GetInboundAddr() string {
+func (pm *radio) GetInboundAddr() string {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.inboundAddr
 }
 
-func (pm *manager) GetWebserverAddr() string {
+func (pm *radio) GetWebserverAddr() string {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.webserverAddr
 }
 
-func (pm *manager) GetWebserverDebugPath() string {
+func (pm *radio) GetWebserverDebugPath() string {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.webserverDebugPath
 }
 
-func (pm *manager) GetUseMulticast() bool {
+func (pm *radio) GetUseMulticast() bool {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.useMulticast
 }
 
-func (pm *manager) GetStaticPeers() []string {
+func (pm *radio) GetStaticPeers() []string {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.staticPeers
 }
 
-func (pm *manager) GetWebserverHandlers() []WebserverHandler {
+func (pm *radio) GetWebserverHandlers() []WebserverHandler {
 	defer pm.conf.autorlock()()
 
 	return pm.conf.webserverHandlers

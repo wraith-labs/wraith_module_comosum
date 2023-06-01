@@ -18,8 +18,6 @@ import (
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/misc"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"
@@ -106,39 +104,47 @@ func (pm *radio) Start() {
 		pQUIC := pineconeSessions.NewSessions(c.logger, pRouter, []string{PROTOCOL_NAME})
 		pMulticast := pineconeMulticast.NewMulticast(c.logger, pRouter)
 		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
-		pHTTP := pQUIC.Protocol(PROTOCOL_NAME).HTTP()
 
-		// Pinecone HTTP server.
-		httpApp := fiber.New(fiber.Config{
-			DisableStartupMessage:        true,
-			DisablePreParseMultipartForm: true,
-			ReadTimeout:                  10 * time.Second,
-			WriteTimeout:                 10 * time.Second,
-			IdleTimeout:                  10 * time.Second,
-		})
-		httpApp.All(proto.ROUTE_PREFIX, func(ctx *fiber.Ctx) error {
-			fmt.Println("YOOOOOOOOOOOO")
+		// Set up rx queue handling.
+		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
+		pMux.PathPrefix(proto.ROUTE_PREFIX).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Read the payload from request body.
-			data := ctx.Body()
+			data, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
 			// Fill out packet metadata.
 			p := proto.Packet{
-				Peer:   ctx.IP(),
-				Method: ctx.Method(),
-				Route:  strings.TrimPrefix(ctx.Route().Path, proto.ROUTE_PREFIX),
+				Peer:   r.RemoteAddr,
+				Method: r.Method,
+				Route:  strings.TrimPrefix(r.URL.EscapedPath(), proto.ROUTE_PREFIX),
 				Data:   data,
 			}
 
 			// Respond so the requester doesn't have to wait for the queue to empty.
-			ctx.SendStatus(http.StatusNoContent)
+			w.WriteHeader(http.StatusNoContent)
 
 			// Add to the queue.
 			pm.rxq <- p
-
-			return nil
 		})
-		pineconeHttpServer := httpApp.Server()
-		pHTTP.Mux().Handle("/", adaptor.FiberApp(httpApp))
+
+		pHTTP := pQUIC.Protocol(PROTOCOL_NAME).HTTP()
+		pHTTP.Mux().Handle("/", pMux)
+
+		// Pinecone HTTP server.
+		pineconeHttpServer := http.Server{
+			Addr:         ":0",
+			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  60 * time.Second,
+			BaseContext: func(_ net.Listener) context.Context {
+				return ctx
+			},
+			Handler: pMux,
+		}
 
 		// Start pinecone HTTP server in goroutine.
 		wg.Add(1)
@@ -311,7 +317,7 @@ func (pm *radio) Start() {
 
 		// Tear down pinecone HTTP server.
 		phttpShutdownTimeoutCtx, phttpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
-		pineconeHttpServer.ShutdownWithContext(phttpShutdownTimeoutCtx)
+		pineconeHttpServer.Shutdown(phttpShutdownTimeoutCtx)
 		phttpShutdownTimeoutCtxCancel()
 
 		// Tear down pinecone components.

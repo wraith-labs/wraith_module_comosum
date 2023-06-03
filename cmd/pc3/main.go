@@ -191,7 +191,7 @@ func main() {
 					}
 
 					// Validate credential.
-					outtoken, expiry, status, ok := TradeTokens(c, reqdata)
+					outtoken, expiry, status, ok := TradeTokens(&c, reqdata)
 					if !ok {
 						c.attemptsUntilLockout.Add(-1)
 						w.WriteHeader(http.StatusUnauthorized)

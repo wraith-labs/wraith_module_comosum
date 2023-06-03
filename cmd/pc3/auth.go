@@ -142,12 +142,12 @@ func ComputeTimeTokenHash(token []byte, authtime time.Time) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func TradeTokens(c Config, reqdata authRequest) ([]byte, time.Time, authStatus, bool) {
+func TradeTokens(c *Config, reqdata authRequest) ([]byte, time.Time, authStatus, bool) {
 	authtime := time.UnixMilli(reqdata.Time)
 
-	// Make sure that the authtime is within reasonable boundaries (10 seconds either way).
-	if authtime.Before(time.Now().UTC().Add(-10*time.Second)) ||
-		authtime.After(time.Now().UTC().Add(10*time.Second)) {
+	// Make sure that the authtime is within reasonable boundaries (3 seconds either way).
+	if authtime.Before(time.Now().UTC().Add(-3*time.Second)) ||
+		authtime.After(time.Now().UTC().Add(3*time.Second)) {
 
 		return []byte{}, time.Time{}, AUTH_STATUS_N, false
 	}

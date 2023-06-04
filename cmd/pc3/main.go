@@ -3,26 +3,23 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
-	"embed"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
+	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/crypto/cryptohelper"
+	"maunium.net/go/mautrix/event"
 )
-
-//go:embed ui/dist/*
-var ui embed.FS
 
 func main() {
 	//
@@ -84,151 +81,69 @@ func main() {
 	// Create a state storage struct.
 	s := MkState()
 
-	// Use pmanager non-pinecone webserver to host web UI and an API to communicate with it.
-	ui, err := fs.Sub(ui, "ui/dist")
+	// Start pinecone.
+	go pr.Start()
+
+	// Connect to Matrix homeserver.
+	client, err := mautrix.NewClient(c.homeserver, "", "")
 	if err != nil {
 		panic(err)
 	}
 
-	pr.SetWebserverHandlers([]radio.WebserverHandler{
-		{
-			Path: "/X/",
-			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				path := strings.TrimPrefix(r.URL.EscapedPath(), "/X/")
-
-				switch path {
-				case "checkauth":
-					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-						w.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-					w.WriteHeader(http.StatusNoContent)
-				case "clients":
-					// Require auth.
-					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-						w.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-
-					handleClients(r, w, s)
-				case "about":
-					// Require auth.
-					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A, AUTH_STATUS_V) {
-						w.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-
-					handleAbout(w)
-				case "send":
-					// Require auth as admin.
-					if !StatusInGroup(AuthStatus(r), AUTH_STATUS_A) {
-						w.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-
-					// Get the data from the request body.
-					reqbody, err := io.ReadAll(r.Body)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-
-					// Parse the request body.
-					reqdata := sendRequest{}
-					err = json.Unmarshal(reqbody, &reqdata)
-					if err != nil {
-						w.WriteHeader(http.StatusBadRequest)
-						return
-					}
-
-					// Prepare the packet to be sent to client.
-					req := s.Request(reqdata.Target, proto.PacketReq{
-						Payload: struct {
-							Read    []string
-							Write   map[string]interface{}
-							ListMem bool
-						}{
-							Read:    reqdata.Payload.Read,
-							Write:   reqdata.Payload.Write,
-							ListMem: reqdata.Payload.ListMem,
-						},
-						Conditions: reqdata.Conditions,
-					})
-					packetData, err := proto.Marshal(&req, pineconeId)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-
-					// Send the packet to client.
-					pr.Send(context.Background(), proto.Packet{
-						Peer:   reqdata.Target,
-						Method: http.MethodPost,
-						Route:  proto.ROUTE_REQUEST,
-						Data:   packetData,
-					})
-
-					w.WriteHeader(http.StatusNoContent)
-				case "auth":
-					// Make sure we haven't exceeded the limit for failed logins.
-					if c.attemptsUntilLockout.Load() <= 0 {
-						w.WriteHeader(http.StatusTeapot)
-						return
-					}
-
-					// Get the data from the request body.
-					reqbody, err := io.ReadAll(r.Body)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-
-					reqdata := authRequest{}
-					err = json.Unmarshal(reqbody, &reqdata)
-					if err != nil {
-						w.WriteHeader(http.StatusBadRequest)
-						return
-					}
-
-					// Validate credential.
-					outtoken, expiry, status, ok := TradeTokens(&c, reqdata)
-					if !ok {
-						c.attemptsUntilLockout.Add(-1)
-						w.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-
-					// Reset failed attempts counter on successful login.
-					c.attemptsUntilLockout.Store(STARTING_ATTEMPTS_UNTIL_LOCKOUT)
-
-					// Create a response.
-					response, err := json.Marshal(authSuccessResponse{
-						Token:  string(outtoken),
-						Expiry: expiry,
-						Access: status,
-					})
-
-					// Not much we can do.
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-					}
-
-					// 200.
-					w.Write(response)
-				default:
-					// If someone makes an API call we don't recognise, we're a teapot.
-					w.WriteHeader(http.StatusTeapot)
-				}
-			}),
-		},
-		{
-			Path:    "/",
-			Handler: http.FileServer(http.FS(ui)),
-		},
+	syncer := client.Syncer.(*mautrix.DefaultSyncer)
+	syncer.OnEventType(event.EventMessage, func(source mautrix.EventSource, evt *event.Event) {
+		//
+	})
+	syncer.OnEventType(event.StateMember, func(source mautrix.EventSource, evt *event.Event) {
+		if evt.GetStateKey() == client.UserID.String() && evt.Content.AsMember().Membership == event.MembershipInvite {
+			_, err := client.JoinRoomByID(evt.RoomID)
+			if err == nil {
+				//
+			} else {
+			}
+		}
 	})
 
-	// Start pinecone.
-	go pr.Start()
+	cryptoHelper, err := cryptohelper.NewCryptoHelper(client, []byte("meow"), "file::memory:")
+	if err != nil {
+		panic(err)
+	}
+
+	// You can also store the user/device IDs and access token and put them in the client beforehand instead of using LoginAs.
+	//client.UserID = "..."
+	//client.DeviceID = "..."
+	//client.AccessToken = "..."
+	// You don't need to set a device ID in LoginAs because the crypto helper will set it for you if necessary.
+	cryptoHelper.LoginAs = &mautrix.ReqLogin{
+		Type:       mautrix.AuthTypePassword,
+		Identifier: mautrix.UserIdentifier{Type: mautrix.IdentifierTypeUser, User: c.username},
+		Password:   c.password,
+	}
+	// If you want to use multiple clients with the same DB, you should set a distinct database account ID for each one.
+	//cryptoHelper.DBAccountID = ""
+	err = cryptoHelper.Init()
+	if err != nil {
+		panic(err)
+	}
+	// Set the client crypto helper in order to automatically encrypt outgoing messages
+	client.Crypto = cryptoHelper
+
+	syncCtx, cancelSync := context.WithCancel(context.Background())
+	var syncStopWait sync.WaitGroup
+	syncStopWait.Add(1)
+
+	go func() {
+		err = client.SyncWithContext(syncCtx)
+		defer syncStopWait.Done()
+		if err != nil && !errors.Is(err, context.Canceled) {
+			panic(err)
+		}
+	}()
+
+	cancelSync()
+	syncStopWait.Wait()
+	_ = cryptoHelper.Close()
+	client.JoinedRooms()
 
 	// Start receiving messages.
 	// Background context is okay because the channel will be closed

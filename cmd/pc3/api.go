@@ -1,44 +1,6 @@
 package main
 
-import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"os/user"
-	"runtime"
-	"runtime/debug"
-	"time"
-)
-
-type authRequest struct {
-	Token string `json:"token"`
-	Time  int64  `json:"time"`
-}
-
-type authSuccessResponse struct {
-	Token  string     `json:"token"`
-	Expiry time.Time  `json:"expiry"`
-	Access authStatus `json:"access"`
-}
-
-type clientsRequest struct {
-	Offset int `json:"offset"`
-	Limit  int `json:"limit"`
-}
-
-type sendRequest struct {
-	Target  string `json:"target"`
-	Payload struct {
-		Read    []string               `json:"read"`
-		Write   map[string]interface{} `json:"write"`
-		ListMem bool                   `json:"listMem"`
-	} `json:"payload"`
-	Conditions struct{} `json:"conditions"`
-}
-
-func handleClients(r *http.Request, w http.ResponseWriter, s *state) {
+/*func handleClients(r *http.Request, w http.ResponseWriter, s *state) {
 	// Pull necessary information out of the request.
 	// Get the data from the request body.
 	reqbody, err := io.ReadAll(r.Body)
@@ -102,4 +64,4 @@ func handleAbout(w http.ResponseWriter) {
 
 	// Send!
 	w.Write(data)
-}
+}*/

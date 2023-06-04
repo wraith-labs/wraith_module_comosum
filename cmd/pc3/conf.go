@@ -1,20 +1,16 @@
 package main
 
 import (
+	"net/url"
 	"os"
 	"strconv"
-	"sync/atomic"
+	"strings"
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 )
 
 const (
-	DEFAULT_PANEL_LISTEN_ADDR = "127.0.0.1:48080"
-	DEFAULT_PANEL_ADMIN_TOKEN = "wraith!"
-
-	STARTING_ATTEMPTS_UNTIL_LOCKOUT = 5
-
 	STATE_CLEANUP_INTERVAL     = 30 * time.Second
 	STATE_CLIENT_EXPIRY_DELAY  = proto.HEARTBEAT_MARK_DEAD_DELAY
 	STATE_REQUEST_EXPIRY_DELAY = 10 * time.Minute
@@ -23,14 +19,17 @@ const (
 )
 
 type Config struct {
-	// The address on which the control panel should listen for connections.
-	panelListenAddr string
+	// The address of the homeserver to connect to for C2.
+	homeserver string
 
-	// A string which allows administrative access to the panel.
-	panelAdminToken string
+	// The username to authenticate to the HS with.
+	username string
 
-	// A string which allows view-only access to the panel.
-	panelViewToken string
+	// The password to authenticate to the HS with.
+	password string
+
+	// List of MXIDs with admin privileges over the C2.
+	admins []string
 
 	// Private key to use as identity on the pinecone network.
 	pineconeId string
@@ -52,9 +51,6 @@ type Config struct {
 
 	// Whether to use multicast to discover pinecone peers on the local network.
 	pineconeStaticPeers string
-
-	// Not configurable: the amount of failed login attempts until the panel is locked out.
-	attemptsUntilLockout atomic.Int64
 }
 
 func (c *Config) Setup() {
@@ -69,9 +65,10 @@ func (c *Config) Setup() {
 	// Save relevant env to config.
 	//
 
-	c.panelListenAddr = os.Getenv("WMP_PANEL_ADDR")
-	c.panelAdminToken = os.Getenv("WMP_ADMIN_TOKEN")
-	c.panelViewToken = os.Getenv("WMP_VIEW_TOKEN")
+	c.homeserver = os.Getenv("WMP_HOMESERVER")
+	c.username = os.Getenv("WMP_USERNAME")
+	c.password = os.Getenv("WMP_PASSWORD")
+	c.admins = strings.Split(os.Getenv("WMP_ADMINS"), " ")
 	c.pineconeId = os.Getenv("WMP_ID_PINECONE")
 	c.logPinecone = logPinecone
 	c.pineconeInboundTcpAddr = os.Getenv("WMP_INBOUND_TCP_PINECONE")
@@ -81,20 +78,15 @@ func (c *Config) Setup() {
 	c.pineconeStaticPeers = os.Getenv("WMP_STATIC_PEERS_PINECONE")
 
 	//
-	// Set non-env config.
-	//
-
-	c.attemptsUntilLockout.Store(STARTING_ATTEMPTS_UNTIL_LOCKOUT)
-
-	//
 	// Validate config.
 	//
 
-	if c.panelListenAddr == "" {
-		c.panelListenAddr = DEFAULT_PANEL_LISTEN_ADDR
+	_, hsParseError := url.ParseRequestURI(c.homeserver)
+	if hsParseError != nil {
+		panic("could not parse homeserver url")
 	}
 
-	if c.panelAdminToken == "" {
-		c.panelAdminToken = DEFAULT_PANEL_ADMIN_TOKEN
+	if c.username == "" || c.password == "" {
+		panic("please provide homeserver username and password")
 	}
 }

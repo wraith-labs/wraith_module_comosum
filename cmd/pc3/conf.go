@@ -4,7 +4,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
@@ -28,8 +27,8 @@ type Config struct {
 	// The password to authenticate to the HS with.
 	password string
 
-	// List of MXIDs with admin privileges over the C2.
-	admins []string
+	// The Matrix room where administration occurs.
+	adminRoom string
 
 	// Private key to use as identity on the pinecone network.
 	pineconeId string
@@ -68,7 +67,7 @@ func (c *Config) Setup() {
 	c.homeserver = os.Getenv("WMP_HOMESERVER")
 	c.username = os.Getenv("WMP_USERNAME")
 	c.password = os.Getenv("WMP_PASSWORD")
-	c.admins = strings.Split(os.Getenv("WMP_ADMINS"), " ")
+	c.adminRoom = os.Getenv("WMP_ADMIN_ROOM")
 	c.pineconeId = os.Getenv("WMP_ID_PINECONE")
 	c.logPinecone = logPinecone
 	c.pineconeInboundTcpAddr = os.Getenv("WMP_INBOUND_TCP_PINECONE")
@@ -87,6 +86,10 @@ func (c *Config) Setup() {
 	}
 
 	if c.username == "" || c.password == "" {
-		panic("please provide homeserver username and password")
+		panic("please provide homeserver credentials")
+	}
+
+	if c.adminRoom == "" {
+		panic("please provide an admin room id")
 	}
 }

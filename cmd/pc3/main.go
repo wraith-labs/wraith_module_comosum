@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -16,14 +15,12 @@ import (
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
-	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/crypto/cryptohelper"
-	"maunium.net/go/mautrix/event"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
 	//
-	// Create a struct to hold any config values.
+	// Create a struct to hold config values.
 	//
 
 	c := Config{}
@@ -48,12 +45,12 @@ func main() {
 	}
 	pineconeId := ed25519.PrivateKey(pineconeIdBytes)
 
-	// Get a struct for managing pinecone connections.
-	pr := radio.GetInstance()
-
 	//
 	// Configure pinecone manager.
 	//
+
+	// Get a struct for managing pinecone connections.
+	pr := radio.GetInstance()
 
 	pr.SetPineconeIdentity(pineconeId)
 	if c.logPinecone {
@@ -75,6 +72,15 @@ func main() {
 	signal.Notify(sigchan, syscall.SIGTERM, syscall.SIGINT)
 
 	//
+	// Set up Matrix comms for C2.
+	//
+	matrixBotCtx, stopMatrixBot := context.WithCancel(context.Background())
+	var matrixBotWait sync.WaitGroup
+	client := MatrixBotInit(matrixBotCtx, c, &matrixBotWait)
+	MatrixBotRunStartup(client, c)
+	MatrixBotEventHandlerSetUp(client, c)
+
+	//
 	// Main body.
 	//
 
@@ -84,68 +90,9 @@ func main() {
 	// Start pinecone.
 	go pr.Start()
 
-	// Connect to Matrix homeserver.
-	client, err := mautrix.NewClient(c.homeserver, "", "")
-	if err != nil {
-		panic(err)
-	}
-
-	syncer := client.Syncer.(*mautrix.DefaultSyncer)
-	syncer.OnEventType(event.EventMessage, func(source mautrix.EventSource, evt *event.Event) {
-		//
-	})
-	syncer.OnEventType(event.StateMember, func(source mautrix.EventSource, evt *event.Event) {
-		if evt.GetStateKey() == client.UserID.String() && evt.Content.AsMember().Membership == event.MembershipInvite {
-			_, err := client.JoinRoomByID(evt.RoomID)
-			if err == nil {
-				//
-			} else {
-			}
-		}
-	})
-
-	cryptoHelper, err := cryptohelper.NewCryptoHelper(client, []byte("meow"), "file::memory:")
-	if err != nil {
-		panic(err)
-	}
-
-	// You can also store the user/device IDs and access token and put them in the client beforehand instead of using LoginAs.
-	//client.UserID = "..."
-	//client.DeviceID = "..."
-	//client.AccessToken = "..."
-	// You don't need to set a device ID in LoginAs because the crypto helper will set it for you if necessary.
-	cryptoHelper.LoginAs = &mautrix.ReqLogin{
-		Type:       mautrix.AuthTypePassword,
-		Identifier: mautrix.UserIdentifier{Type: mautrix.IdentifierTypeUser, User: c.username},
-		Password:   c.password,
-	}
-	// If you want to use multiple clients with the same DB, you should set a distinct database account ID for each one.
-	//cryptoHelper.DBAccountID = ""
-	err = cryptoHelper.Init()
-	if err != nil {
-		panic(err)
-	}
-	// Set the client crypto helper in order to automatically encrypt outgoing messages
-	client.Crypto = cryptoHelper
-
-	syncCtx, cancelSync := context.WithCancel(context.Background())
-	var syncStopWait sync.WaitGroup
-	syncStopWait.Add(1)
-
-	go func() {
-		err = client.SyncWithContext(syncCtx)
-		defer syncStopWait.Done()
-		if err != nil && !errors.Is(err, context.Canceled) {
-			panic(err)
-		}
-	}()
-
-	cancelSync()
-	syncStopWait.Wait()
-	_ = cryptoHelper.Close()
 	client.JoinedRooms()
 
-	// Start receiving messages.
+	// Start receiving Wraith messages.
 	// Background context is okay because the channel will be closed
 	// when the manager exits further down anyway.
 	recv := pr.RecvChan(context.Background())
@@ -204,7 +151,12 @@ mainloop:
 		os.Exit(1)
 	}()
 
+	// Stop pinecone.
 	pr.Stop()
+
+	// Stop Matrix bot.
+	stopMatrixBot()
+	matrixBotWait.Wait()
 
 	os.Exit(0)
 }

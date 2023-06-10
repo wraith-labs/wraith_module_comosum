@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
 	_ "github.com/mattn/go-sqlite3"
@@ -23,22 +24,22 @@ func main() {
 	// Create a struct to hold config values.
 	//
 
-	c := Config{}
+	c := lib.Config{}
 	c.Setup()
 
 	//
 	// Validate the config.
 	//
 
-	if c.pineconeId == "" {
+	if c.PineconeId == "" {
 		fmt.Println("no pineconeId was specified; cannot continue")
 		os.Exit(1)
 	}
-	if c.pineconeInboundTcpAddr == "" && c.pineconeInboundWebAddr == "" && !c.pineconeUseMulticast && c.pineconeStaticPeers == "" {
+	if c.PineconeInboundTcpAddr == "" && c.PineconeInboundWebAddr == "" && !c.PineconeUseMulticast && c.PineconeStaticPeers == "" {
 		fmt.Println("no way for peers to connect was specified; cannot continue")
 		os.Exit(1)
 	}
-	pineconeIdBytes, err := hex.DecodeString(c.pineconeId)
+	pineconeIdBytes, err := hex.DecodeString(c.PineconeId)
 	if err != nil {
 		fmt.Println("provided pineconeId was not a hex-encoded string; cannot continue")
 		os.Exit(1)
@@ -53,15 +54,15 @@ func main() {
 	pr := radio.GetInstance()
 
 	pr.SetPineconeIdentity(pineconeId)
-	if c.logPinecone {
+	if c.LogPinecone {
 		pr.SetLogger(log.Default())
 	}
-	pr.SetInboundAddr(c.pineconeInboundTcpAddr)
-	pr.SetWebserverAddr(c.pineconeInboundWebAddr)
-	pr.SetWebserverDebugPath(c.pineconeDebugEndpoint)
-	pr.SetUseMulticast(c.pineconeUseMulticast)
-	if c.pineconeStaticPeers != "" {
-		pr.SetStaticPeers(strings.Split(c.pineconeStaticPeers, ","))
+	pr.SetInboundAddr(c.PineconeInboundTcpAddr)
+	pr.SetWebserverAddr(c.PineconeInboundWebAddr)
+	pr.SetWebserverDebugPath(c.PineconeDebugEndpoint)
+	pr.SetUseMulticast(c.PineconeUseMulticast)
+	if c.PineconeStaticPeers != "" {
+		pr.SetStaticPeers(strings.Split(c.PineconeStaticPeers, ","))
 	}
 
 	//
@@ -78,14 +79,18 @@ func main() {
 	var matrixBotWait sync.WaitGroup
 	client := MatrixBotInit(matrixBotCtx, c, &matrixBotWait)
 	MatrixBotRunStartup(client, c)
-	MatrixBotEventHandlerSetUp(client, c)
+	MatrixBotEventHandlerSetUp(lib.CommandContext{
+		Config: &c,
+		Client: client,
+		Radio:  &pr,
+	})
 
 	//
 	// Main body.
 	//
 
 	// Create a state storage struct.
-	s := MkState()
+	s := lib.MkState()
 
 	// Start pinecone.
 	go pr.Start()
@@ -104,7 +109,7 @@ mainloop:
 		case <-sigchan:
 			break mainloop
 		// Clean up state.
-		case <-time.After(STATE_CLEANUP_INTERVAL):
+		case <-time.After(lib.STATE_CLEANUP_INTERVAL):
 			s.Prune()
 		// Process incoming packets.
 		case packet := <-recv:

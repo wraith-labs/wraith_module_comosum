@@ -1,4 +1,4 @@
-package main
+package lib
 
 import (
 	"net/url"
@@ -19,37 +19,37 @@ const (
 
 type Config struct {
 	// The address of the homeserver to connect to for C2.
-	homeserver string
+	Homeserver string
 
 	// The username to authenticate to the HS with.
-	username string
+	Username string
 
 	// The password to authenticate to the HS with.
-	password string
+	Password string
 
 	// The Matrix room where administration occurs.
-	adminRoom string
+	AdminRoom string
 
 	// Private key to use as identity on the pinecone network.
-	pineconeId string
+	PineconeId string
 
 	// Whether to print pinecone's internal logs to stdout.
-	logPinecone bool
+	LogPinecone bool
 
 	// The address to listen for inbound pinecone connections on.
-	pineconeInboundTcpAddr string
+	PineconeInboundTcpAddr string
 
 	// The address to listen for inbound HTTP connections on (allows pinecone over websocket and pinecone debug endpoint if enabled).
-	pineconeInboundWebAddr string
+	PineconeInboundWebAddr string
 
 	// The HTTP path of the pinecone debug endpoint on the pinecone webserver (omit to disable).
-	pineconeDebugEndpoint string
+	PineconeDebugEndpoint string
 
 	// Comma-delimeted list of static peers to connect to.
-	pineconeUseMulticast bool
+	PineconeUseMulticast bool
 
 	// Whether to use multicast to discover pinecone peers on the local network.
-	pineconeStaticPeers string
+	PineconeStaticPeers string
 }
 
 func (c *Config) Setup() {
@@ -64,32 +64,32 @@ func (c *Config) Setup() {
 	// Save relevant env to config.
 	//
 
-	c.homeserver = os.Getenv("WMP_HOMESERVER")
-	c.username = os.Getenv("WMP_USERNAME")
-	c.password = os.Getenv("WMP_PASSWORD")
-	c.adminRoom = os.Getenv("WMP_ADMIN_ROOM")
-	c.pineconeId = os.Getenv("WMP_ID_PINECONE")
-	c.logPinecone = logPinecone
-	c.pineconeInboundTcpAddr = os.Getenv("WMP_INBOUND_TCP_PINECONE")
-	c.pineconeInboundWebAddr = os.Getenv("WMP_INBOUND_WEB_PINECONE")
-	c.pineconeDebugEndpoint = os.Getenv("WMP_DEBUG_ENDPOINT_PINECONE")
-	c.pineconeUseMulticast = pineconeUseMulticast
-	c.pineconeStaticPeers = os.Getenv("WMP_STATIC_PEERS_PINECONE")
+	c.Homeserver = os.Getenv("WMP_HOMESERVER")
+	c.Username = os.Getenv("WMP_USERNAME")
+	c.Password = os.Getenv("WMP_PASSWORD")
+	c.AdminRoom = os.Getenv("WMP_ADMIN_ROOM")
+	c.PineconeId = os.Getenv("WMP_ID_PINECONE")
+	c.LogPinecone = logPinecone
+	c.PineconeInboundTcpAddr = os.Getenv("WMP_INBOUND_TCP_PINECONE")
+	c.PineconeInboundWebAddr = os.Getenv("WMP_INBOUND_WEB_PINECONE")
+	c.PineconeDebugEndpoint = os.Getenv("WMP_DEBUG_ENDPOINT_PINECONE")
+	c.PineconeUseMulticast = pineconeUseMulticast
+	c.PineconeStaticPeers = os.Getenv("WMP_STATIC_PEERS_PINECONE")
 
 	//
 	// Validate config.
 	//
 
-	_, hsParseError := url.ParseRequestURI(c.homeserver)
+	_, hsParseError := url.ParseRequestURI(c.Homeserver)
 	if hsParseError != nil {
 		panic("could not parse homeserver url")
 	}
 
-	if c.username == "" || c.password == "" {
+	if c.Username == "" || c.Password == "" {
 		panic("please provide homeserver credentials")
 	}
 
-	if c.adminRoom == "" {
+	if c.AdminRoom == "" {
 		panic("please provide an admin room id")
 	}
 }

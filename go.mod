@@ -10,6 +10,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/matrix-org/pinecone v0.11.1-0.20230210171230-8c3b24f2649a
 	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/traefik/yaegi v0.15.1
 	maunium.net/go/mautrix v0.15.2
 )
 

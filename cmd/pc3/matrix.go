@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
@@ -16,47 +17,50 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-func MatrixBotRunStartup(client *mautrix.Client, c Config) {
+func MatrixBotRunStartup(client *mautrix.Client, c lib.Config) {
 	// Make sure we're only ever in the admin room.
 	rooms, err := client.JoinedRooms()
 	if err != nil {
 		panic(err)
 	}
 	for _, room := range rooms.JoinedRooms {
-		if room.String() != c.adminRoom {
+		if room.String() != c.AdminRoom {
 			client.LeaveRoom(room)
 			client.ForgetRoom(room)
 		}
 	}
 }
 
-func MatrixBotEventHandlerSetUp(client *mautrix.Client, c Config) {
-	syncer := client.Syncer.(*mautrix.DefaultSyncer)
+func MatrixBotEventHandlerSetUp(ctx lib.CommandContext) {
+	syncer := ctx.Client.Syncer.(*mautrix.DefaultSyncer)
 
 	// Messages.
 	syncer.OnEventType(event.EventMessage, func(source mautrix.EventSource, evt *event.Event) {
-		if evt.RoomID == id.RoomID(c.adminRoom) {
+		if evt.RoomID == id.RoomID(ctx.Config.AdminRoom) {
 			// Mark any messages in the admin room as read.
-			client.SendReceipt(evt.RoomID, evt.ID, event.ReceiptTypeRead, nil)
+			ctx.Client.SendReceipt(evt.RoomID, evt.ID, event.ReceiptTypeRead, nil)
 
 			if message, ok := evt.Content.Parsed.(*event.MessageEventContent); ok {
 				if command := strings.TrimPrefix(message.Body, "!wmp "); command != message.Body {
 					// If the message starts with the command prefix, start
 					// typing to indicate that we're processing the message.
-					defer client.UserTyping(evt.RoomID, false, time.Microsecond*1)
-					client.UserTyping(evt.RoomID, true, time.Minute*1)
+					defer ctx.Client.UserTyping(evt.RoomID, false, time.Microsecond*1)
+					ctx.Client.UserTyping(evt.RoomID, true, time.Minute*1)
 
-					if replyText, err := ExecCmd(command); replyText != nil {
-						// If there is a reply, send it.
-						reply := format.RenderMarkdown(*replyText, true, true)
-						reply.SetReply(evt)
-						client.SendMessageEvent(evt.RoomID, event.EventMessage, reply)
-					} else if err != nil {
-						// If there is no reply but there is an error, react with nack.
-						client.SendReaction(evt.RoomID, evt.ID, "❌")
+					replyText, err := ExecCmd(ctx, command)
+					if err == nil {
+						ctx.Client.SendReaction(evt.RoomID, evt.ID, "✅")
 					} else {
-						// Otherwise, react with ack.
-						client.SendReaction(evt.RoomID, evt.ID, "✅")
+						ctx.Client.SendReaction(evt.RoomID, evt.ID, "❌")
+
+						errReply := format.RenderMarkdown(err.Error(), true, true)
+						errReply.SetReply(evt)
+						ctx.Client.SendMessageEvent(evt.RoomID, event.EventMessage, errReply)
+					}
+					if replyText != "" {
+						reply := format.RenderMarkdown(replyText, true, true)
+						reply.SetReply(evt)
+						ctx.Client.SendMessageEvent(evt.RoomID, event.EventMessage, reply)
 					}
 				}
 			}
@@ -65,20 +69,20 @@ func MatrixBotEventHandlerSetUp(client *mautrix.Client, c Config) {
 
 	// Invites.
 	syncer.OnEventType(event.StateMember, func(source mautrix.EventSource, evt *event.Event) {
-		if evt.GetStateKey() == client.UserID.String() && evt.Content.AsMember().Membership == event.MembershipInvite {
-			if evt.RoomID == id.RoomID(c.adminRoom) {
-				client.JoinRoomByID(evt.RoomID)
+		if evt.GetStateKey() == ctx.Client.UserID.String() && evt.Content.AsMember().Membership == event.MembershipInvite {
+			if evt.RoomID == id.RoomID(ctx.Config.AdminRoom) {
+				ctx.Client.JoinRoomByID(evt.RoomID)
 			} else {
-				client.LeaveRoom(evt.RoomID)
-				client.ForgetRoom(evt.RoomID)
+				ctx.Client.LeaveRoom(evt.RoomID)
+				ctx.Client.ForgetRoom(evt.RoomID)
 			}
 		}
 	})
 }
 
-func MatrixBotInit(ctx context.Context, c Config, wg *sync.WaitGroup) *mautrix.Client {
+func MatrixBotInit(ctx context.Context, c lib.Config, wg *sync.WaitGroup) *mautrix.Client {
 	// Connect to Matrix homeserver.
-	client, err := mautrix.NewClient(c.homeserver, "", "")
+	client, err := mautrix.NewClient(c.Homeserver, "", "")
 	if err != nil {
 		panic(err)
 	}
@@ -96,9 +100,9 @@ func MatrixBotInit(ctx context.Context, c Config, wg *sync.WaitGroup) *mautrix.C
 
 	cryptoHelper.LoginAs = &mautrix.ReqLogin{
 		Type:                     mautrix.AuthTypePassword,
-		Identifier:               mautrix.UserIdentifier{Type: mautrix.IdentifierTypeUser, User: c.username},
+		Identifier:               mautrix.UserIdentifier{Type: mautrix.IdentifierTypeUser, User: c.Username},
 		InitialDeviceDisplayName: "WMP-" + fmt.Sprint(time.Now().Unix()),
-		Password:                 c.password,
+		Password:                 c.Password,
 		StoreHomeserverURL:       true,
 	}
 

@@ -1,24 +1,11 @@
-FROM docker.io/node:18-alpine AS uibuilder
-
-WORKDIR /build/
-
-COPY ./cmd/pc3/ui /build/ui
-
-RUN cd /build/ui && \
-    rm -rf dist/* && \
-    npm install && \
-    npm run build
-
-FROM docker.io/golang:1.19-alpine AS builder
+FROM docker.io/golang:1.20-alpine AS builder
 
 WORKDIR /build/
 
 COPY . /build/
 
-COPY --from=uibuilder /build/ui/dist/. /build/cmd/pc3/ui/dist
-
 RUN cd /build && \
-    apk add build-base && \
+    apk add build-base olm-dev && \
     go version && \
     go build -trimpath -o pc3 cmd/pc3/*.go
 
@@ -26,9 +13,17 @@ FROM alpine
 
 COPY --from=builder /build/pc3 /usr/bin/pc3
 
-ENV APP_ADMIN_USERNAME=wraithadmin
-ENV APP_ADMIN_PASSWORD=wr417h4dm1n
-ENV APP_VIEW_USERNAME=wraithview
-ENV APP_VIEW_PASSWORD=wr417hv13w
+ENV \
+WMP_HOMESERVER= \
+WMP_USERNAME= \
+WMP_PASSWORD= \
+WMP_ADMIN_ROOM= \
+WMP_ID_PINECONE= \
+WMP_LOG_PINECONE= \
+WMP_INBOUND_TCP_PINECONE= \
+WMP_INBOUND_WEB_PINECONE= \
+WMP_DEBUG_ENDPOINT_PINECONE= \
+WMP_USE_MULTICAST_PINECONE= \
+WMP_STATIC_PEERS_PINECONE=
 
 ENTRYPOINT ["/usr/bin/pc3"]

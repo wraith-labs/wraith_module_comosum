@@ -157,6 +157,7 @@ mainloop:
 	// Stop Matrix bot.
 	stopMatrixBot()
 	matrixBotWait.Wait()
+	client.Logout()
 
 	os.Exit(0)
 }

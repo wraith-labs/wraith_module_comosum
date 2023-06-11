@@ -11,6 +11,8 @@ require (
 	github.com/matrix-org/pinecone v0.11.1-0.20230210171230-8c3b24f2649a
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/traefik/yaegi v0.15.1
+	gorm.io/driver/sqlite v1.5.2
+	gorm.io/gorm v1.25.2-0.20230530020048-26663ab9bf55
 	maunium.net/go/mautrix v0.15.2
 )
 
@@ -19,6 +21,8 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20230602150820-91b7bce49751 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect

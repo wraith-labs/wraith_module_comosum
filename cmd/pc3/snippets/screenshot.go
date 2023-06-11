@@ -1,0 +1,3 @@
+package snippets
+
+const SCREENSHOT = ""

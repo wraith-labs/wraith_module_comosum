@@ -6,135 +6,82 @@ import (
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"github.com/google/uuid"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-func MkState() *state {
-	s := state{
-		clients: clientList{
-			clients: map[string]*client{},
-		},
-		requests: map[string]request{},
-	}
-	return &s
+type state struct {
+	db *gorm.DB
 }
 
 type client struct {
-	Address           string                `json:"address"`
-	LastHeartbeatTime time.Time             `json:"lastHeartbeatTime"`
-	LastHeartbeat     proto.PacketHeartbeat `json:"lastHeartbeat"`
+	ID      string `gorm:"primaryKey"`
+	Address string `gorm:"index;not null;unique"`
 
-	prev *client
-	next *client
-}
-
-// This data structure allows for storage of clients while allowing for efficient ordering
-// and therefore pagination, deletion and addition of clients, and accessing a client by ID.
-type clientList struct {
-	head    *client
-	tail    *client
-	clients map[string]*client
-}
-
-func (l *clientList) Append(id string, c client) {
-	c.prev, c.next = nil, nil
-	if _, exists := l.clients[id]; !exists {
-		if l.head == nil {
-			l.head = &c
-		}
-		if l.tail != nil {
-			l.tail.next = &c
-			c.prev = l.tail
-		}
-		l.tail = &c
-	}
-	l.clients[id] = &c
-}
-
-func (l *clientList) Delete(id string) {
-	c, ok := l.clients[id]
-	if !ok {
-		return
-	}
-
-	if c.prev == nil {
-		// This is the first element. Make the next one first.
-		l.head = c.next
-	} else {
-		c.prev.next = c.next
-	}
-
-	if c.next == nil {
-		// This is the last element. Make the previous one last.
-		l.tail = c.prev
-	} else {
-		c.next.prev = c.prev
-	}
-
-	delete(l.clients, id)
-}
-
-func (l *clientList) Get(id string) (*client, bool) {
-	c, ok := l.clients[id]
-	return c, ok
-}
-
-func (l *clientList) GetPage(offset, limit int) ([]*client, int) {
-	if totalClients := len(l.clients); offset > totalClients {
-		return []*client{}, totalClients
-	}
-
-	// If the remainder of the client list after the offset is
-	// smaller than the limit, reduce the limit to the size of that
-	// remainder to avoid nulls in the returned data.
-	if maxLimit := len(l.clients) - offset; maxLimit < limit {
-		limit = maxLimit
-	}
-
-	page := make([]*client, limit)
-	current := l.head
-	for i := 0; i < offset+limit; i++ {
-		if current == nil {
-			break
-		}
-
-		if i >= offset && i < offset+limit {
-			page[i-offset] = current
-		}
-
-		current = current.next
-	}
-	return page, len(l.clients)
+	FirstHeartbeatTime time.Time             `gorm:"not null"`
+	LastHeartbeatTime  time.Time             `gorm:"not null"`
+	LastHeartbeat      proto.PacketHeartbeat `gorm:"not null;serializer:json;type:json"`
 }
 
 type request struct {
-	target string
+	TxId   string `gorm:"primaryKey"`
+	Target string `gorm:"index;not null;unique"`
 
-	requestTime time.Time
-	request     proto.PacketReq
+	RequestTime time.Time       `gorm:"not null"`
+	Request     proto.PacketReq `gorm:"not null;serializer:json;type:json"`
 
-	responseTime time.Time
-	response     proto.PacketRes
+	ResponseTime time.Time
+	Response     proto.PacketRes `gorm:"serializer:json;type:json"`
 }
 
-type state struct {
-	// List of "connected" Wraith clients.
-	clients      clientList
-	clientsMutex sync.RWMutex
+func MkState() *state {
+	//db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("./test.db"), &gorm.Config{})
+	if err != nil {
+		panic("failed to open memory db")
+	}
 
-	// List of request/response pairs.
-	requests      map[string]request
-	requestsMutex sync.RWMutex
+	db.AutoMigrate(&client{}, &request{})
+
+	return &state{
+		db: db,
+	}
+}
+
+func (s *state) ClientAppend(c *client) error {
+	result := s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "address"}},
+		DoUpdates: clause.AssignmentColumns([]string{"last_heartbeat_time", "last_heartbeat"}),
+	}).Create(c)
+	return result.Error
+}
+
+func (s *state) ClientDelete(c *client) error {
+	result := s.db.Delete(c)
+	return result.Error
+}
+
+func (s *state) ClientGet(id string) (client, error) {
+	c := client{}
+	result := s.db.Take(&c, id)
+	return c, result.Error
+}
+
+func (s *state) ClientGetPage(offset, limit int) ([]client, error) {
+	page := make([]client, limit)
+	result := s.db.Order("first_heartbeat_time ASC").Find(&page)
+	return page, result.Error
 }
 
 // Save/update a Wraith client entry.
 func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
-	s.clientsMutex.Lock()
-	defer s.clientsMutex.Unlock()
-
-	s.clients.Append(src, client{
-		Address:           src,
-		LastHeartbeatTime: time.Now(),
-		LastHeartbeat:     hb,
+	s.ClientAppend(&client{
+		ID:                 uuid.NewString(),
+		Address:            src,
+		FirstHeartbeatTime: time.Now(),
+		LastHeartbeatTime:  time.Now(),
+		LastHeartbeat:      hb,
 	})
 }
 
@@ -143,28 +90,26 @@ func (s *state) Request(dst string, req proto.PacketReq) proto.PacketReq {
 	reqTxId := uuid.NewString()
 	req.TxId = reqTxId
 
-	s.requestsMutex.Lock()
-	defer s.requestsMutex.Unlock()
-
-	s.requests[reqTxId] = request{
-		target:      dst,
-		requestTime: time.Now(),
-		request:     req,
-	}
+	s.db.Create(&request{
+		TxId:        reqTxId,
+		Target:      dst,
+		RequestTime: time.Now(),
+		Request:     req,
+	})
 
 	return req
 }
 
 // Save a response to a request.
-func (s *state) Response(src string, res proto.PacketRes) {
-	s.requestsMutex.Lock()
-	defer s.requestsMutex.Unlock()
-
-	if req, ok := s.requests[res.TxId]; ok && src == req.target && req.responseTime.IsZero() {
-		req.responseTime = time.Now()
-		req.response = res
-		s.requests[res.TxId] = req
+func (s *state) Response(src string, res proto.PacketRes) error {
+	req := request{}
+	result := s.db.First(&req, res.TxId)
+	if result.Error == nil && src == req.Target && req.ResponseTime.IsZero() {
+		req.ResponseTime = time.Now()
+		req.Response = res
+		s.db.Save(req)
 	}
+	return result.Error
 }
 
 // Expire timed-out entries in the state.
@@ -175,35 +120,14 @@ func (s *state) Prune() {
 	// Clean up expired client heartbeats.
 	go func() {
 		defer wg.Done()
-		s.clientsMutex.Lock()
-		defer s.clientsMutex.Unlock()
-
-		for id, c := range s.clients.clients {
-			if time.Since(c.LastHeartbeatTime) > proto.HEARTBEAT_MARK_DEAD_DELAY {
-				s.clients.Delete(id)
-			}
-		}
+		s.db.Where("last_heartbeat_time <= ?", time.Now().Add(-1*STATE_CLIENT_EXPIRY_DELAY)).Delete(&client{})
 	}()
 
 	// Clean up expired request-response pairs.
 	go func() {
 		defer wg.Done()
-		s.requestsMutex.Lock()
-		defer s.requestsMutex.Unlock()
-
-		for id, r := range s.requests {
-			if time.Since(r.requestTime) > STATE_REQUEST_EXPIRY_DELAY {
-				delete(s.requests, id)
-			}
-		}
+		s.db.Where("request_time <= ?", time.Now().Add(-1*STATE_REQUEST_EXPIRY_DELAY)).Delete(&request{})
 	}()
 
 	wg.Wait()
-}
-
-func (s *state) GetClients(offset, limit int) ([]*client, int) {
-	s.clientsMutex.Lock()
-	defer s.clientsMutex.Unlock()
-
-	return s.clients.GetPage(offset, limit)
 }

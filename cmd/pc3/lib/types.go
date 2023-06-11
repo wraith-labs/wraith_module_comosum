@@ -9,4 +9,5 @@ type CommandContext struct {
 	Config *Config
 	Client *mautrix.Client
 	Radio  *radio.Radio
+	State  *state
 }

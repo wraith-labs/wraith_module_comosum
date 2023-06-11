@@ -36,7 +36,6 @@ type request struct {
 }
 
 func MkState() *state {
-	//db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{})
 	db, err := gorm.Open(sqlite.Open("./test.db"), &gorm.Config{})
 	if err != nil {
 		panic("failed to open memory db")
@@ -69,9 +68,9 @@ func (s *state) ClientGet(id string) (client, error) {
 }
 
 func (s *state) ClientGetPage(offset, limit int) ([]client, error) {
-	page := make([]client, limit)
-	result := s.db.Order("first_heartbeat_time ASC").Find(&page)
-	return page, result.Error
+	clients := make([]client, limit)
+	result := s.db.Order("first_heartbeat_time ASC").Offset(offset).Limit(limit).Find(&clients)
+	return clients, result.Error
 }
 
 // Save/update a Wraith client entry.

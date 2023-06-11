@@ -73,19 +73,6 @@ func main() {
 	signal.Notify(sigchan, syscall.SIGTERM, syscall.SIGINT)
 
 	//
-	// Set up Matrix comms for C2.
-	//
-	matrixBotCtx, stopMatrixBot := context.WithCancel(context.Background())
-	var matrixBotWait sync.WaitGroup
-	client := MatrixBotInit(matrixBotCtx, c, &matrixBotWait)
-	MatrixBotRunStartup(client, c)
-	MatrixBotEventHandlerSetUp(lib.CommandContext{
-		Config: &c,
-		Client: client,
-		Radio:  &pr,
-	})
-
-	//
 	// Main body.
 	//
 
@@ -94,6 +81,18 @@ func main() {
 
 	// Start pinecone.
 	go pr.Start()
+
+	// Set up Matrix comms for C2.
+	matrixBotCtx, stopMatrixBot := context.WithCancel(context.Background())
+	var matrixBotWait sync.WaitGroup
+	client := MatrixBotInit(matrixBotCtx, c, &matrixBotWait)
+	MatrixBotRunStartup(client, c)
+	MatrixBotEventHandlerSetUp(lib.CommandContext{
+		Config: &c,
+		Client: client,
+		Radio:  &pr,
+		State:  s,
+	})
 
 	client.JoinedRooms()
 

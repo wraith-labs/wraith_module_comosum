@@ -41,7 +41,7 @@ func MatrixBotEventHandlerSetUp(ctx lib.CommandContext) {
 			ctx.Client.SendReceipt(evt.RoomID, evt.ID, event.ReceiptTypeRead, nil)
 
 			if message, ok := evt.Content.Parsed.(*event.MessageEventContent); ok {
-				if command := strings.TrimPrefix(message.Body, "!wmp "); command != message.Body {
+				if command := strings.TrimPrefix(message.Body, "!w "); command != message.Body {
 					// If the message starts with the command prefix, start
 					// typing to indicate that we're processing the message.
 					defer ctx.Client.UserTyping(evt.RoomID, false, time.Microsecond*1)

@@ -53,11 +53,21 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not parse argument: %e", err)
 	}
-	clients, err := ctx.State.ClientGetPage(page*10, 10)
+	clients, err := ctx.State.ClientGetPage(page*lib.DATA_PAGE_SIZE, lib.DATA_PAGE_SIZE)
 	if err != nil {
 		return "", fmt.Errorf("could not get page from database: %e", err)
 	}
-	clientListString := fmt.Sprintf("Client list page %d:\n", page)
+	clientsTotalCount, err := ctx.State.ClientCount()
+	if err != nil {
+		return "", fmt.Errorf("could not get client total count from database: %e", err)
+	}
+	clientListString := fmt.Sprintf(
+		"Client list page %d of %d (%d total client/s; %d per page):\n",
+		page,
+		clientsTotalCount/lib.DATA_PAGE_SIZE,
+		clientsTotalCount,
+		lib.DATA_PAGE_SIZE,
+	)
 	clientListString += "\n| Client ID | Strain ID | Init Time | Hostname | Host OS | Host Arch | HostUser | Host User ID | Modules | Errors |"
 	clientListString += "\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
 	for _, client := range clients {

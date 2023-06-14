@@ -73,6 +73,12 @@ func (s *state) ClientGetPage(offset, limit int) ([]client, error) {
 	return clients, result.Error
 }
 
+func (s *state) ClientCount() (int64, error) {
+	var count int64
+	result := s.db.Model(&client{}).Count(&count)
+	return count, result.Error
+}
+
 // Save/update a Wraith client entry.
 func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 	s.ClientAppend(&client{

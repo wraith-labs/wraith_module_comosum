@@ -3,7 +3,7 @@ module dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms
 go 1.20
 
 require (
-	dev.l1qu1d.net/wraith-labs/wraith/wraith v0.0.0-20230412033239-573206620cac
+	dev.l1qu1d.net/wraith-labs/wraith/libwraith v0.0.0-20230616015345-11b443349a7b
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -23,7 +23,7 @@ require (
 	github.com/google/pprof v0.0.0-20230602150820-91b7bce49751 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/klauspost/compress v1.16.6 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/onsi/ginkgo/v2 v2.10.0 // indirect
@@ -38,12 +38,12 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yuin/goldmark v1.5.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
+	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
-	golang.org/x/mod v0.10.0 // indirect
-	golang.org/x/net v0.10.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/tools v0.9.3 // indirect
+	golang.org/x/mod v0.11.0 // indirect
+	golang.org/x/net v0.11.0 // indirect
+	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/tools v0.10.0 // indirect
 	maunium.net/go/maulogger/v2 v2.4.1 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )

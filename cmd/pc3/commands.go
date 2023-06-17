@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/snippets"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/symbols"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
 	"github.com/traefik/yaegi/stdlib/unsafe"
@@ -17,10 +18,7 @@ func CmdX(ctx lib.CommandContext, arg string) (string, error) {
 		Unrestricted: true,
 	})
 
-	stdlib.Symbols["wmp/wmp"] = map[string]reflect.Value{
-		"CommandContext": reflect.ValueOf((*lib.CommandContext)(nil)),
-		"Config":         reflect.ValueOf((*lib.Config)(nil)),
-	}
+	i.Use(symbols.Symbols)
 	i.Use(stdlib.Symbols)
 	i.Use(unsafe.Symbols)
 
@@ -86,6 +84,16 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 		)
 	}
 	return clientListString, nil
+}
+
+func CmdS(ctx lib.CommandContext, arg string) (string, error) {
+	snippetName, snippetArg, _ := strings.Cut(arg, " ")
+	if snippet, exists := snippets.Snippets[snippetName]; exists {
+		snippet(ctx, snippetArg)
+		return "", nil
+	} else {
+		return "", fmt.Errorf("no snippet found with name `%s`", snippetName)
+	}
 }
 
 func CmdH(ctx lib.CommandContext, arg string) (string, error) {

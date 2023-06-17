@@ -28,11 +28,11 @@ type request struct {
 	TxId   string `gorm:"primaryKey"`
 	Target string `gorm:"index;not null;unique"`
 
-	RequestTime time.Time       `gorm:"not null"`
-	Request     proto.PacketReq `gorm:"not null;serializer:json;type:json"`
+	RequestTime time.Time      `gorm:"not null"`
+	Request     proto.PacketRR `gorm:"not null;serializer:json;type:json"`
 
 	ResponseTime time.Time
-	Response     proto.PacketRes `gorm:"serializer:json;type:json"`
+	Response     proto.PacketRR `gorm:"serializer:json;type:json"`
 }
 
 func MkState() *state {
@@ -91,7 +91,7 @@ func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 }
 
 // Save a request and generate a TxId.
-func (s *state) Request(dst string, req proto.PacketReq) proto.PacketReq {
+func (s *state) Request(dst string, req proto.PacketRR) proto.PacketRR {
 	reqTxId := uuid.NewString()
 	req.TxId = reqTxId
 
@@ -106,7 +106,7 @@ func (s *state) Request(dst string, req proto.PacketReq) proto.PacketReq {
 }
 
 // Save a response to a request.
-func (s *state) Response(src string, res proto.PacketRes) error {
+func (s *state) Response(src string, res proto.PacketRR) error {
 	req := request{}
 	result := s.db.First(&req, res.TxId)
 	if result.Error == nil && src == req.Target && req.ResponseTime.IsZero() {

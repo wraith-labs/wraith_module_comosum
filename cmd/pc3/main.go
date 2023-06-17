@@ -131,7 +131,7 @@ mainloop:
 				}
 				go s.Heartbeat(packet.Peer, packetData)
 			case proto.ROUTE_RESPONSE:
-				packetData := proto.PacketRes{}
+				packetData := proto.PacketRR{}
 				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
 				if err != nil {
 					// The packet data is malformed, there is nothing more we

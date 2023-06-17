@@ -9,7 +9,7 @@ import (
 )
 
 type packetData interface {
-	PacketHeartbeat | PacketReq | PacketRes
+	PacketHeartbeat | PacketRR
 }
 
 // Converts a packet into a byte array ready for transmission.

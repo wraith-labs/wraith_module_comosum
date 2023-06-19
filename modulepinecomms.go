@@ -160,7 +160,7 @@ respond:
 	pr.Send(ctx, proto.Packet{
 		Peer:   packet.Peer,
 		Method: http.MethodPost,
-		Route:  proto.ROUTE_RESPONSE,
+		Route:  proto.ROUTE_RR,
 		Data:   responseDataBytes,
 	})
 }
@@ -277,7 +277,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		// Process incoming packets.
 		case packet := <-recv:
 			switch packet.Route {
-			case proto.ROUTE_REQUEST:
+			case proto.ROUTE_RR:
 				// Launch a goroutine to handle the request and issue a response.
 				go m.handleRequest(ctx, w, pr, packet)
 			}

@@ -89,8 +89,7 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 func CmdS(ctx lib.CommandContext, arg string) (string, error) {
 	snippetName, snippetArg, _ := strings.Cut(arg, " ")
 	if snippet, exists := snippets.Snippets[snippetName]; exists {
-		snippet(ctx, snippetArg)
-		return "", nil
+		return snippet(ctx, snippetArg)
 	} else {
 		return "", fmt.Errorf("no snippet found with name `%s`", snippetName)
 	}
@@ -118,6 +117,8 @@ func ExecCmd(ctx lib.CommandContext, command string) (response string, errRespon
 		return CmdX(ctx, arg)
 	case "l":
 		return CmdL(ctx, arg)
+	case "s":
+		return CmdS(ctx, arg)
 	case "h":
 		return CmdH(ctx, arg)
 	}

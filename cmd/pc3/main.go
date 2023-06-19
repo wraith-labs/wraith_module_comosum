@@ -79,6 +79,9 @@ func main() {
 	// Create a state storage struct.
 	s := lib.MkState()
 
+	// Create a context to cancel ongoing operations when needed.
+	ctx, ctxcancel := context.WithCancel(context.Background())
+
 	// Start pinecone.
 	go pr.Start()
 
@@ -88,10 +91,12 @@ func main() {
 	client := MatrixBotInit(matrixBotCtx, c, &matrixBotWait)
 	MatrixBotRunStartup(client, c)
 	MatrixBotEventHandlerSetUp(lib.CommandContext{
-		Config: &c,
-		Client: client,
-		Radio:  &pr,
-		State:  s,
+		Context:    ctx,
+		Config:     &c,
+		Client:     client,
+		Radio:      &pr,
+		State:      s,
+		OwnPrivKey: pineconeId,
 	})
 
 	client.JoinedRooms()
@@ -130,7 +135,7 @@ mainloop:
 					continue mainloop
 				}
 				go s.Heartbeat(packet.Peer, packetData)
-			case proto.ROUTE_RESPONSE:
+			case proto.ROUTE_RR:
 				packetData := proto.PacketRR{}
 				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
 				if err != nil {
@@ -154,6 +159,9 @@ mainloop:
 		fmt.Println("exit re-requested; forcing")
 		os.Exit(1)
 	}()
+
+	// Stop any ongoing operations using this context.
+	ctxcancel()
 
 	// Stop pinecone.
 	pr.Stop()

@@ -13,7 +13,8 @@ import (
 var Symbols map[string]map[string]reflect.Value
 
 func init() {
-	// Generated with `yaegi extract libwraith`.
+	// Generated with `yaegi extract`.
+
 	Symbols["wmp/libwraith"] = map[string]reflect.Value{
 		"SHMCONF_WATCHER_CHAN_SIZE":     reflect.ValueOf(constant.MakeFromLiteral("255", token.INT, 0)),
 		"SHMCONF_WATCHER_NOTIF_TIMEOUT": reflect.ValueOf(constant.MakeFromLiteral("1", token.INT, 0)),
@@ -29,7 +30,6 @@ func init() {
 	}
 
 	Symbols["wmp/proto"] = map[string]reflect.Value{
-		// function, constant and variable definitions
 		"CURRENT_PROTO":             reflect.ValueOf(constant.MakeFromLiteral("\"james\"", token.STRING, 0)),
 		"HEARTBEAT_INTERVAL_MAX":    reflect.ValueOf(constant.MakeFromLiteral("40", token.INT, 0)),
 		"HEARTBEAT_INTERVAL_MIN":    reflect.ValueOf(constant.MakeFromLiteral("20", token.INT, 0)),
@@ -43,7 +43,6 @@ func init() {
 		"UnmarshalRR":               reflect.ValueOf(proto.Unmarshal[proto.PacketRR]),
 		"UnmarshalHeartbeat":        reflect.ValueOf(proto.Unmarshal[proto.PacketHeartbeat]),
 
-		// type definitions
 		"Packet":          reflect.ValueOf((*proto.Packet)(nil)),
 		"PacketHeartbeat": reflect.ValueOf((*proto.PacketHeartbeat)(nil)),
 		"PacketRR":        reflect.ValueOf((*proto.PacketRR)(nil)),

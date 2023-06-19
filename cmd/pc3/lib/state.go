@@ -15,7 +15,7 @@ type state struct {
 	db *gorm.DB
 }
 
-type client struct {
+type Client struct {
 	ID      string `gorm:"primaryKey"`
 	Address string `gorm:"index;not null;unique"`
 
@@ -24,7 +24,7 @@ type client struct {
 	LastHeartbeat      proto.PacketHeartbeat `gorm:"not null;serializer:json;type:json"`
 }
 
-type request struct {
+type Request struct {
 	TxId   string `gorm:"primaryKey"`
 	Target string `gorm:"index;not null;unique"`
 
@@ -41,14 +41,14 @@ func MkState() *state {
 		panic("failed to open memory db")
 	}
 
-	db.AutoMigrate(&client{}, &request{})
+	db.AutoMigrate(&Client{}, &Request{})
 
 	return &state{
 		db: db,
 	}
 }
 
-func (s *state) ClientAppend(c *client) error {
+func (s *state) ClientAppend(c *Client) error {
 	result := s.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "address"}},
 		DoUpdates: clause.AssignmentColumns([]string{"last_heartbeat_time", "last_heartbeat"}),
@@ -56,32 +56,38 @@ func (s *state) ClientAppend(c *client) error {
 	return result.Error
 }
 
-func (s *state) ClientDelete(c *client) error {
+func (s *state) ClientDelete(c *Client) error {
 	result := s.db.Delete(c)
 	return result.Error
 }
 
-func (s *state) ClientGet(id string) (client, error) {
-	c := client{}
+func (s *state) ClientGet(id string) (Client, error) {
+	c := Client{}
 	result := s.db.Take(&c, id)
 	return c, result.Error
 }
 
-func (s *state) ClientGetPage(offset, limit int) ([]client, error) {
-	clients := make([]client, limit)
+func (s *state) ClientGetPage(offset, limit int) ([]Client, error) {
+	clients := make([]Client, limit)
 	result := s.db.Order("first_heartbeat_time ASC").Offset(offset).Limit(limit).Find(&clients)
 	return clients, result.Error
 }
 
+func (s *state) ClientGetAll() ([]Client, error) {
+	c := []Client{}
+	result := s.db.Find(&c)
+	return c, result.Error
+}
+
 func (s *state) ClientCount() (int64, error) {
 	var count int64
-	result := s.db.Model(&client{}).Count(&count)
+	result := s.db.Model(&Client{}).Count(&count)
 	return count, result.Error
 }
 
 // Save/update a Wraith client entry.
 func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
-	s.ClientAppend(&client{
+	s.ClientAppend(&Client{
 		ID:                 uuid.NewString(),
 		Address:            src,
 		FirstHeartbeatTime: time.Now(),
@@ -95,7 +101,7 @@ func (s *state) Request(dst string, req proto.PacketRR) proto.PacketRR {
 	reqTxId := uuid.NewString()
 	req.TxId = reqTxId
 
-	s.db.Create(&request{
+	s.db.Create(&Request{
 		TxId:        reqTxId,
 		Target:      dst,
 		RequestTime: time.Now(),
@@ -107,7 +113,7 @@ func (s *state) Request(dst string, req proto.PacketRR) proto.PacketRR {
 
 // Save a response to a request.
 func (s *state) Response(src string, res proto.PacketRR) error {
-	req := request{}
+	req := Request{}
 	result := s.db.First(&req, res.TxId)
 	if result.Error == nil && src == req.Target && req.ResponseTime.IsZero() {
 		req.ResponseTime = time.Now()
@@ -125,13 +131,13 @@ func (s *state) Prune() {
 	// Clean up expired client heartbeats.
 	go func() {
 		defer wg.Done()
-		s.db.Where("last_heartbeat_time <= ?", time.Now().Add(-1*STATE_CLIENT_EXPIRY_DELAY)).Delete(&client{})
+		s.db.Where("last_heartbeat_time <= ?", time.Now().Add(-1*STATE_CLIENT_EXPIRY_DELAY)).Delete(&Client{})
 	}()
 
 	// Clean up expired request-response pairs.
 	go func() {
 		defer wg.Done()
-		s.db.Where("request_time <= ?", time.Now().Add(-1*STATE_REQUEST_EXPIRY_DELAY)).Delete(&request{})
+		s.db.Where("request_time <= ?", time.Now().Add(-1*STATE_REQUEST_EXPIRY_DELAY)).Delete(&Request{})
 	}()
 
 	wg.Wait()

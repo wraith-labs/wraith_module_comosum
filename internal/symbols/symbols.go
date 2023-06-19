@@ -13,6 +13,8 @@ import (
 var Symbols map[string]map[string]reflect.Value
 
 func init() {
+	Symbols = make(map[string]map[string]reflect.Value)
+
 	// Generated with `yaegi extract`.
 
 	Symbols["wmp/libwraith"] = map[string]reflect.Value{

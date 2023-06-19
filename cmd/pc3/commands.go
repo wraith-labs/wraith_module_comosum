@@ -47,10 +47,19 @@ func CmdX(ctx lib.CommandContext, arg string) (string, error) {
 }
 
 func CmdL(ctx lib.CommandContext, arg string) (string, error) {
-	page, err := strconv.Atoi(arg)
-	if err != nil {
-		return "", fmt.Errorf("could not parse argument: %e", err)
+	var (
+		page int
+		err  error
+	)
+	if arg == "" {
+		page = 0
+	} else {
+		page, err = strconv.Atoi(arg)
+		if err != nil {
+			return "", fmt.Errorf("could not parse argument: %e", err)
+		}
 	}
+
 	clients, err := ctx.State.ClientGetPage(page*lib.DATA_PAGE_SIZE, lib.DATA_PAGE_SIZE)
 	if err != nil {
 		return "", fmt.Errorf("could not get page from database: %e", err)

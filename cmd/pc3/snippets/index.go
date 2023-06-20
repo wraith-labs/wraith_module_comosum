@@ -3,6 +3,7 @@ package snippets
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
@@ -20,16 +21,19 @@ func init() {
 	}
 }
 
-func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, payload []byte) (*proto.PacketRR, error) {
+func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, payload []byte, timeout time.Duration) (*proto.PacketRR, error) {
 	client, err := ctx.State.ClientGet(clientId)
 	if err != nil {
 		return nil, fmt.Errorf("could not get client `%s` from the database: %s", clientId, err.Error())
 	}
 
 	// Write request to the DB and get a TxId.
-	req := ctx.State.Request(client.Address, proto.PacketRR{
+	req, err := ctx.State.Request(client.Address, proto.PacketRR{
 		Payload: payload,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("could not save request to the db: %s", err.Error())
+	}
 
 	data, err := proto.Marshal(&req, ctx.OwnPrivKey)
 	if err != nil {
@@ -46,6 +50,5 @@ func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, payloa
 		return nil, fmt.Errorf("failed to send packet: %s", err.Error())
 	}
 
-	// TODO: Wait for and return response.
-	return nil, nil
+	return ctx.State.AwaitResponse(req.TxId, timeout)
 }

@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -77,30 +78,50 @@ func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 }
 
 // Save a request and generate a TxId.
-func (s *state) Request(dst string, req proto.PacketRR) proto.PacketRR {
+func (s *state) Request(dst string, req proto.PacketRR) (proto.PacketRR, error) {
 	reqTxId := uuid.NewString()
 	req.TxId = reqTxId
 
-	s.db.Create(&Request{
+	result := s.db.Create(&Request{
 		TxId:        reqTxId,
 		Target:      dst,
 		RequestTime: time.Now(),
 		Request:     req,
 	})
 
-	return req
+	return req, result.Error
 }
 
 // Save a response to a request.
 func (s *state) Response(src string, res proto.PacketRR) error {
 	req := Request{}
-	result := s.db.First(&req, "tx_id = ?", res.TxId)
+	result := s.db.Take(&req, "tx_id = ?", res.TxId)
 	if result.Error == nil && src == req.Target && req.ResponseTime.IsZero() {
 		req.ResponseTime = time.Now()
 		req.Response = res
-		s.db.Save(req)
+		result = s.db.Save(req)
 	}
 	return result.Error
+}
+
+func (s *state) AwaitResponse(txId string, timeout time.Duration) (*proto.PacketRR, error) {
+	startTime := time.Now()
+	for {
+		req := Request{}
+		result := s.db.Take(&req, "tx_id = ?", txId)
+
+		if result.Error != nil {
+			return nil, result.Error
+		} else if !req.ResponseTime.IsZero() {
+			return &req.Response, nil
+		}
+
+		if time.Since(startTime) > timeout {
+			return nil, fmt.Errorf("timeout waiting for response to request `%s` after %s", txId, time.Since(startTime).String())
+		}
+
+		<-time.After(time.Second)
+	}
 }
 
 // Expire timed-out entries in the state.

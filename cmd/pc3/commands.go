@@ -18,7 +18,9 @@ func CmdX(ctx lib.CommandContext, arg string) (string, error) {
 		Unrestricted: true,
 	})
 
-	i.Use(symbols.Symbols)
+	i.Use(symbols.SymbolsLibwraith)
+	i.Use(symbols.SymbolsPc3)
+	i.Use(symbols.SymbolsProto)
 	i.Use(stdlib.Symbols)
 	i.Use(unsafe.Symbols)
 

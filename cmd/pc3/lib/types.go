@@ -30,7 +30,7 @@ type Client struct {
 
 type Request struct {
 	TxId   string `gorm:"primaryKey"`
-	Target string `gorm:"index;not null;unique"`
+	Target string `gorm:"index;not null"`
 
 	RequestTime time.Time      `gorm:"not null"`
 	Request     proto.PacketRR `gorm:"not null;serializer:json;type:json"`

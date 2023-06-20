@@ -3,6 +3,7 @@ package snippets
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
 )
@@ -26,16 +27,18 @@ func snippetSendto(ctx lib.CommandContext, arg string) (string, error) {
 		clients = append(clients, client)
 	}
 
-	errCount := 0
+	errCount := new(uint64)
 	for _, client := range clients {
-		_, err := snippet(ctx, fmt.Sprintf("%s %s", client.ID, otherArgs))
-		if err != nil {
-			errCount++
-		}
+		go func(client lib.Client) {
+			_, err := snippet(ctx, fmt.Sprintf("%s %s", client.ID, otherArgs))
+			if err != nil {
+				atomic.AddUint64(errCount, 1)
+			}
+		}(client)
 	}
 
 	var err error
-	if errCount > 0 {
+	if *errCount > 0 {
 		err = fmt.Errorf("%d sends errored", errCount)
 	}
 

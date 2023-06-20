@@ -17,7 +17,7 @@ func snippetSendall(ctx lib.CommandContext, arg string) (string, error) {
 
 	clients, err := ctx.State.ClientGetAll()
 	if err != nil {
-		return "", fmt.Errorf("could not get a list of all clients from db: %e", err)
+		return "", fmt.Errorf("could not get a list of all clients from db: %s", err.Error())
 	}
 
 	errCount := 0
@@ -28,5 +28,9 @@ func snippetSendall(ctx lib.CommandContext, arg string) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("sent to %d clients", len(clients)), fmt.Errorf("%d sends errored", errCount)
+	if errCount > 0 {
+		err = fmt.Errorf("%d sends errored", errCount)
+	}
+
+	return fmt.Sprintf("sent to %d clients", len(clients)), err
 }

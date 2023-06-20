@@ -21,7 +21,7 @@ func snippetSendto(ctx lib.CommandContext, arg string) (string, error) {
 	for _, target := range targets {
 		client, err := ctx.State.ClientGet(target)
 		if err != nil {
-			return "", fmt.Errorf("could not get client `%s` from the database: %e", target, err)
+			return "", fmt.Errorf("could not get client `%s` from the database: %s", target, err.Error())
 		}
 		clients = append(clients, client)
 	}
@@ -34,5 +34,10 @@ func snippetSendto(ctx lib.CommandContext, arg string) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("sent to %d clients", len(clients)), fmt.Errorf("%d sends errored", errCount)
+	var err error
+	if errCount > 0 {
+		err = fmt.Errorf("%d sends errored", errCount)
+	}
+
+	return fmt.Sprintf("sent to %d clients", len(clients)), err
 }

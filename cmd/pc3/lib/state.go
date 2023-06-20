@@ -15,26 +15,6 @@ type state struct {
 	db *gorm.DB
 }
 
-type Client struct {
-	ID      string `gorm:"primaryKey"`
-	Address string `gorm:"index;not null;unique"`
-
-	FirstHeartbeatTime time.Time             `gorm:"not null"`
-	LastHeartbeatTime  time.Time             `gorm:"not null"`
-	LastHeartbeat      proto.PacketHeartbeat `gorm:"not null;serializer:json;type:json"`
-}
-
-type Request struct {
-	TxId   string `gorm:"primaryKey"`
-	Target string `gorm:"index;not null;unique"`
-
-	RequestTime time.Time      `gorm:"not null"`
-	Request     proto.PacketRR `gorm:"not null;serializer:json;type:json"`
-
-	ResponseTime time.Time
-	Response     proto.PacketRR `gorm:"serializer:json;type:json"`
-}
-
 func MkState() *state {
 	db, err := gorm.Open(sqlite.Open("./test.db"), &gorm.Config{})
 	if err != nil {
@@ -63,7 +43,7 @@ func (s *state) ClientDelete(c *Client) error {
 
 func (s *state) ClientGet(id string) (Client, error) {
 	c := Client{}
-	result := s.db.Take(&c, id)
+	result := s.db.Take(&c, "id = ?", id)
 	return c, result.Error
 }
 
@@ -114,7 +94,7 @@ func (s *state) Request(dst string, req proto.PacketRR) proto.PacketRR {
 // Save a response to a request.
 func (s *state) Response(src string, res proto.PacketRR) error {
 	req := Request{}
-	result := s.db.First(&req, res.TxId)
+	result := s.db.First(&req, "tx_id = ?", res.TxId)
 	if result.Error == nil && src == req.Target && req.ResponseTime.IsZero() {
 		req.ResponseTime = time.Now()
 		req.Response = res

@@ -12,7 +12,7 @@ var Snippets map[string]func(ctx lib.CommandContext, arg string) (string, error)
 
 func init() {
 	Snippets = map[string]func(ctx lib.CommandContext, arg string) (string, error){
-		"sysinfo":    snippetSysinfo,
+		"info":       snippetInfo,
 		"screenshot": snippetScreenshot,
 		"sendall":    snippetSendall,
 		"sendto":     snippetSendto,
@@ -20,15 +20,20 @@ func init() {
 	}
 }
 
-func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, packet *proto.PacketRR) (*proto.PacketRR, error) {
-	data, err := proto.Marshal(packet, ctx.OwnPrivKey)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal packet data: %e", err)
-	}
-
+func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, payload []byte) (*proto.PacketRR, error) {
 	client, err := ctx.State.ClientGet(clientId)
 	if err != nil {
-		return nil, fmt.Errorf("could not get client `%s` from the database: %e", clientId, err)
+		return nil, fmt.Errorf("could not get client `%s` from the database: %s", clientId, err.Error())
+	}
+
+	// Write request to the DB and get a TxId.
+	req := ctx.State.Request(client.Address, proto.PacketRR{
+		Payload: payload,
+	})
+
+	data, err := proto.Marshal(&req, ctx.OwnPrivKey)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal packet data: %s", err.Error())
 	}
 
 	err = (*ctx.Radio).Send(ctx.Context, proto.Packet{
@@ -38,7 +43,7 @@ func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, packet
 		Data:   data,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to send packet: %e", err)
+		return nil, fmt.Errorf("failed to send packet: %s", err.Error())
 	}
 
 	// TODO: Wait for and return response.

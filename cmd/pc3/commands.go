@@ -24,12 +24,12 @@ func CmdX(ctx lib.CommandContext, arg string) (string, error) {
 
 	_, err := i.Eval(arg)
 	if err != nil {
-		return "", fmt.Errorf("could not evaluate due to error: %e", err)
+		return "", fmt.Errorf("could not evaluate due to error: %s", err.Error())
 	}
 
 	result, err := i.Eval("main.X")
 	if err != nil {
-		return "", fmt.Errorf("could not find `main.X`: %e", err)
+		return "", fmt.Errorf("could not find `main.X`: %s", err.Error())
 	}
 
 	if !result.IsValid() {
@@ -56,17 +56,17 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 	} else {
 		page, err = strconv.Atoi(arg)
 		if err != nil {
-			return "", fmt.Errorf("could not parse argument: %e", err)
+			return "", fmt.Errorf("could not parse argument: %s", err.Error())
 		}
 	}
 
 	clients, err := ctx.State.ClientGetPage(page*lib.DATA_PAGE_SIZE, lib.DATA_PAGE_SIZE)
 	if err != nil {
-		return "", fmt.Errorf("could not get page from database: %e", err)
+		return "", fmt.Errorf("could not get page from database: %s", err.Error())
 	}
 	clientsTotalCount, err := ctx.State.ClientCount()
 	if err != nil {
-		return "", fmt.Errorf("could not get client total count from database: %e", err)
+		return "", fmt.Errorf("could not get client total count from database: %s", err.Error())
 	}
 	clientListString := fmt.Sprintf(
 		"Client list page %d of %d (%d total client/s; %d per page):\n",
@@ -116,7 +116,7 @@ func CmdH(ctx lib.CommandContext, arg string) (string, error) {
 func ExecCmd(ctx lib.CommandContext, command string) (response string, errResponse error) {
 	defer func() {
 		if p := recover(); p != nil {
-			errResponse = fmt.Errorf("command panicked: %e", p)
+			errResponse = fmt.Errorf("command panicked: %v", p)
 		}
 	}()
 

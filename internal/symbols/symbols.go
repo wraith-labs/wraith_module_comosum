@@ -21,7 +21,7 @@ func init() {
 
 	// Generated with `yaegi extract`.
 
-	SymbolsLibwraith["wmp/libwraith"] = map[string]reflect.Value{
+	SymbolsLibwraith["wmp/libwraith/libwraith"] = map[string]reflect.Value{
 		"SHMCONF_WATCHER_CHAN_SIZE":     reflect.ValueOf(constant.MakeFromLiteral("255", token.INT, 0)),
 		"SHMCONF_WATCHER_NOTIF_TIMEOUT": reflect.ValueOf(constant.MakeFromLiteral("1", token.INT, 0)),
 		"SHM_ERRS":                      reflect.ValueOf(constant.MakeFromLiteral("\"err\"", token.STRING, 0)),
@@ -30,12 +30,12 @@ func init() {
 		"Wraith": reflect.ValueOf((*libwraith.Wraith)(nil)),
 	}
 
-	SymbolsPc3["wmp/pc3"] = map[string]reflect.Value{
+	SymbolsPc3["wmp/pc3/pc3"] = map[string]reflect.Value{
 		"CommandContext": reflect.ValueOf((*lib.CommandContext)(nil)),
 		"Config":         reflect.ValueOf((*lib.Config)(nil)),
 	}
 
-	SymbolsProto["wmp/proto"] = map[string]reflect.Value{
+	SymbolsProto["wmp/proto/proto"] = map[string]reflect.Value{
 		"CURRENT_PROTO":             reflect.ValueOf(constant.MakeFromLiteral("\"james\"", token.STRING, 0)),
 		"HEARTBEAT_INTERVAL_MAX":    reflect.ValueOf(constant.MakeFromLiteral("40", token.INT, 0)),
 		"HEARTBEAT_INTERVAL_MIN":    reflect.ValueOf(constant.MakeFromLiteral("20", token.INT, 0)),

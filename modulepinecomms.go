@@ -89,7 +89,7 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 	})
 
 	moduleSymbols := map[string]map[string]reflect.Value{
-		"wmp/module": {
+		"wmp/module/module": {
 			"ModulePinecomms": reflect.ValueOf((*ModulePinecomms)(nil)),
 		},
 	}

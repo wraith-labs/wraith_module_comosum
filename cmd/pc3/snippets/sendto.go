@@ -19,12 +19,12 @@ func snippetSendto(ctx lib.CommandContext, arg string) (string, error) {
 	}
 
 	clients := make([]lib.Client, len(targets))
-	for _, target := range targets {
+	for index, target := range targets {
 		client, err := ctx.State.ClientGet(target)
 		if err != nil {
 			return "", fmt.Errorf("could not get client `%s` from the database: %s", target, err.Error())
 		}
-		clients = append(clients, client)
+		clients[index] = client
 	}
 
 	errCount := new(uint64)

@@ -82,7 +82,7 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 	for _, client := range clients {
 		clientListString += fmt.Sprintf(
 			"\n| %s | %s | %s | %s | %s | %s | %s | %s | %s | %d |",
-			client.ID,
+			client.Address,
 			client.LastHeartbeat.StrainId,
 			client.LastHeartbeat.InitTime,
 			client.LastHeartbeat.Hostname,

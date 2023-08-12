@@ -24,7 +24,7 @@ func snippetSendall(ctx lib.CommandContext, arg string) (string, error) {
 	errCount := new(uint64)
 	for _, client := range clients {
 		go func(client lib.Client) {
-			_, err := snippet(ctx, fmt.Sprintf("%s %s", client.ID, snippetArg))
+			_, err := snippet(ctx, fmt.Sprintf("%s %s", client.Address, snippetArg))
 			if err != nil {
 				atomic.AddUint64(errCount, 1)
 			}

@@ -42,10 +42,16 @@ func (s *state) ClientDelete(c *Client) error {
 	return result.Error
 }
 
-func (s *state) ClientGet(id string) (Client, error) {
-	c := Client{}
-	result := s.db.Take(&c, "id = ?", id)
-	return c, result.Error
+func (s *state) ClientsGet(addresses []string) ([]Client, error) {
+	var clients []Client
+	result := s.db.Find(&clients, addresses)
+	return clients, result.Error
+}
+
+func (s *state) ClientsGetExcept(addresses []string) ([]Client, error) {
+	var clients []Client
+	result := s.db.Not(addresses).Find(&clients)
+	return clients, result.Error
 }
 
 func (s *state) ClientGetPage(offset, limit int) ([]Client, error) {
@@ -69,7 +75,6 @@ func (s *state) ClientCount() (int64, error) {
 // Save/update a Wraith client entry.
 func (s *state) Heartbeat(src string, hb proto.PacketHeartbeat) {
 	s.ClientAppend(&Client{
-		ID:                 uuid.NewString(),
 		Address:            src,
 		FirstHeartbeatTime: time.Now(),
 		LastHeartbeatTime:  time.Now(),

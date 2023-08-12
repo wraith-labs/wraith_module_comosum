@@ -20,8 +20,7 @@ type CommandContext struct {
 }
 
 type Client struct {
-	ID      string `gorm:"primaryKey"`
-	Address string `gorm:"index;not null;unique"`
+	Address string `gorm:"primaryKey"`
 
 	FirstHeartbeatTime time.Time             `gorm:"not null"`
 	LastHeartbeatTime  time.Time             `gorm:"not null"`

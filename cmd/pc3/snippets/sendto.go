@@ -3,6 +3,7 @@ package snippets
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
@@ -18,29 +19,34 @@ func snippetSendto(ctx lib.CommandContext, arg string) (string, error) {
 		return "", fmt.Errorf("snippet `%s` not found", snippetName)
 	}
 
-	clients := make([]lib.Client, len(targets))
-	for index, target := range targets {
-		client, err := ctx.State.ClientGet(target)
-		if err != nil {
-			return "", fmt.Errorf("could not get client `%s` from the database: %s", target, err.Error())
-		}
-		clients[index] = client
+	clients, err := ctx.State.ClientsGet(targets)
+	if err != nil {
+		return "", fmt.Errorf("could not get clients from the database: %s", err.Error())
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(clients))
+
+	results := make([]string, len(clients))
 	errCount := new(uint64)
-	for _, client := range clients {
-		go func(client lib.Client) {
-			_, err := snippet(ctx, fmt.Sprintf("%s %s", client.ID, otherArgs))
+	for index, client := range clients {
+		go func(index int, client lib.Client) {
+			defer wg.Done()
+
+			result, err := snippet(ctx, fmt.Sprintf("%s %s", client.Address, otherArgs))
 			if err != nil {
 				atomic.AddUint64(errCount, 1)
+			} else {
+				results[index] = result
 			}
-		}(client)
+		}(index, client)
 	}
 
-	var err error
+	wg.Wait()
+
 	if *errCount > 0 {
 		err = fmt.Errorf("%d sends errored", errCount)
 	}
 
-	return fmt.Sprintf("sent to %d clients", len(clients)), err
+	return fmt.Sprintf("sent to %d clients:\n\n%s", len(clients), strings.Join(results, "\n\n")), err
 }

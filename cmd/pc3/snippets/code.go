@@ -10,7 +10,7 @@ import (
 
 func snippetCode(ctx lib.CommandContext, arg string) (string, error) {
 	target, code, _ := strings.Cut(arg, " ")
-	res, err := sendRRToClientAwaitResponse(ctx, target, []byte(code), time.Minute)
+	res, err := sendReqAwaitResponse(ctx, target, []byte(code), time.Minute)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute `code` snippet for client `%s` due to error: %s", target, err.Error())
 	}

@@ -10,7 +10,7 @@ import (
 
 func snippetInfo(ctx lib.CommandContext, arg string) (string, error) {
 	target, _, _ := strings.Cut(arg, " ")
-	res, err := sendRRToClientAwaitResponse(ctx, target, []byte(`
+	res, err := sendReqAwaitResponse(ctx, target, []byte(`
 package main
 
 import (

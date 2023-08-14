@@ -25,6 +25,9 @@ func init() {
 func sendReqAwaitResponse(ctx lib.CommandContext, clientId string, payload []byte, timeout time.Duration) (*proto.PacketRR, error) {
 	clients, err := ctx.State.ClientsGet([]string{clientId})
 	if err != nil || len(clients) != 1 {
+		if err == nil {
+			err = fmt.Errorf("%d clients matched given ID", len(clients))
+		}
 		return nil, fmt.Errorf("could not get client `%s` from the database: %s", clientId, err.Error())
 	}
 

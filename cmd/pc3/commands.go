@@ -77,7 +77,7 @@ func CmdL(ctx lib.CommandContext, arg string) (string, error) {
 		clientsTotalCount,
 		lib.DATA_PAGE_SIZE,
 	)
-	clientListString += "\n| Client ID | Strain ID | Init Time | Hostname | Host OS | Host Arch | HostUser | Host User ID | Modules | Symbols | Errors |"
+	clientListString += "\n| Client Address | Strain ID | Init Time | Hostname | Host OS | Host Arch | HostUser | Host User ID | Modules | Symbols | Errors |"
 	clientListString += "\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
 	for _, client := range clients {
 		clientListString += fmt.Sprintf(

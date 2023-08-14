@@ -55,15 +55,15 @@ func (s *state) ClientsGetExcept(addresses []string) ([]Client, error) {
 }
 
 func (s *state) ClientGetPage(offset, limit int) ([]Client, error) {
-	clients := make([]Client, limit)
+	var clients []Client
 	result := s.db.Order("first_heartbeat_time ASC").Offset(offset).Limit(limit).Find(&clients)
 	return clients, result.Error
 }
 
 func (s *state) ClientGetAll() ([]Client, error) {
-	c := []Client{}
-	result := s.db.Find(&c)
-	return c, result.Error
+	var clients []Client
+	result := s.db.Find(&clients)
+	return clients, result.Error
 }
 
 func (s *state) ClientCount() (int64, error) {

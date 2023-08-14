@@ -264,6 +264,13 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				proto.HEARTBEAT_INTERVAL_MAX-proto.HEARTBEAT_INTERVAL_MIN,
 			)
 
+			additionalSymbolsList := make([]string, len(m.AdditionalSymbols))
+			i := 0
+			for symbolName := range m.AdditionalSymbols {
+				additionalSymbolsList[i] = symbolName
+				i++
+			}
+
 			// Send heartbeat after interval or exit if requested.
 			select {
 			case <-ctx.Done():
@@ -274,6 +281,7 @@ func (m *ModulePinecomms) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 					StrainId:   strain,
 					InitTime:   initTime,
 					Modules:    w.ModsGet(),
+					Symbols:    additionalSymbolsList,
 					HostOS:     runtime.GOOS,
 					HostArch:   runtime.GOARCH,
 					Hostname:   hostname,

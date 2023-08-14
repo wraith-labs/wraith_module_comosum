@@ -40,6 +40,10 @@ type PacketHeartbeat struct {
 	// A list of the names of modules installed in this Wraith.
 	Modules []string
 
+	// A list of the names of symbols avilable within this Wraith's
+	// Go interpreter environment (only those passed to AdditionalSymbols).
+	Symbols []string
+
 	// The operating system Wraith is running on.
 	HostOS string
 

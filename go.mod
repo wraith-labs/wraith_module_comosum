@@ -11,8 +11,8 @@ require (
 	github.com/matrix-org/pinecone v0.11.1-0.20230810010612-ea4c33717fd7
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/traefik/yaegi v0.15.1
-	gorm.io/driver/sqlite v1.5.3
-	gorm.io/gorm v1.25.4
+	gorm.io/driver/sqlite v1.5.4
+	gorm.io/gorm v1.25.5
 	maunium.net/go/mautrix v0.16.1
 )
 
@@ -25,7 +25,7 @@ require (
 	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/onsi/ginkgo/v2 v2.12.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.13.0 // indirect
 	github.com/quic-go/qtls-go1-20 v0.3.4 // indirect
 	github.com/quic-go/quic-go v0.39.0 // indirect
 	github.com/rs/zerolog v1.31.0 // indirect
@@ -38,12 +38,12 @@ require (
 	go.mau.fi/util v0.1.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.3.0 // indirect
-	golang.org/x/crypto v0.13.0 // indirect
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
-	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.15.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
-	golang.org/x/tools v0.13.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/mod v0.13.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/tools v0.14.0 // indirect
 	maunium.net/go/maulogger/v2 v2.4.1 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )

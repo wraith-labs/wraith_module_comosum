@@ -21,6 +21,8 @@ import (
 	"dev.l1qu1d.net/wraith-labs/wraith/libwraith"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
+	"github.com/traefik/yaegi/stdlib/syscall"
+	"github.com/traefik/yaegi/stdlib/unrestricted"
 	"github.com/traefik/yaegi/stdlib/unsafe"
 )
 
@@ -127,7 +129,9 @@ func (m *ModulePinecomms) handleRequest(ctx context.Context, w *libwraith.Wraith
 	i.Use(symbols.SymbolsLibwraith)
 	i.Use(symbols.SymbolsProto)
 	i.Use(stdlib.Symbols)
+	i.Use(syscall.Symbols)
 	i.Use(unsafe.Symbols)
+	i.Use(unrestricted.Symbols)
 	i.Use(m.AdditionalSymbols)
 
 	var (

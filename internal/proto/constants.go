@@ -10,13 +10,4 @@ const (
 
 	// The prefix for all Wraith PineComms HTTP routes.
 	ROUTE_PREFIX = "/_wpc/" + CURRENT_PROTO + "/"
-
-	// Minimum time in seconds between heartbeat requests from Wraiths.
-	HEARTBEAT_INTERVAL_MIN = 20
-
-	// Maximum time in seconds between heartbeat requests from Wraiths.
-	HEARTBEAT_INTERVAL_MAX = 40
-
-	// The time after which a Wraith is marked as offline by the c2.
-	HEARTBEAT_MARK_DEAD_DELAY = HEARTBEAT_INTERVAL_MAX*2 + 1
 )

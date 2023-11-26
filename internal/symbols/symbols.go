@@ -49,7 +49,6 @@ func init() {
 		"UnmarshalRR":               reflect.ValueOf(proto.Unmarshal[proto.PacketRR]),
 		"UnmarshalHeartbeat":        reflect.ValueOf(proto.Unmarshal[proto.PacketHeartbeat]),
 
-		"Packet":          reflect.ValueOf((*proto.Packet)(nil)),
 		"PacketHeartbeat": reflect.ValueOf((*proto.PacketHeartbeat)(nil)),
 		"PacketRR":        reflect.ValueOf((*proto.PacketRR)(nil)),
 	}

@@ -1,7 +1,6 @@
 package radio
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
@@ -10,14 +9,11 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/misc"
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	pineconeConnections "github.com/matrix-org/pinecone/connections"
@@ -26,35 +22,50 @@ import (
 	pineconeSessions "github.com/matrix-org/pinecone/sessions"
 )
 
-type Radio interface {
-	GetInboundAddr() string
-	GetLogger() *log.Logger
-	GetPineconeIdentity() ed25519.PrivateKey
-	GetStaticPeers() []string
-	GetUseMulticast() bool
-	GetWebserverAddr() string
-	GetWebserverDebugPath() string
-	GetWebserverHandlers() []WebserverHandler
-	IsRunning() bool
-	Recv(ctx context.Context) (proto.Packet, error)
-	RecvChan(ctx context.Context) chan proto.Packet
-	Restart()
-	Send(ctx context.Context, p proto.Packet) error
-	SetInboundAddr(u string)
-	SetLogger(u *log.Logger)
-	SetPineconeIdentity(u ed25519.PrivateKey)
-	SetStaticPeers(u []string)
-	SetUseMulticast(u bool)
-	SetWebserverAddr(u string)
-	SetWebserverDebugPath(u string)
-	SetWebserverHandlers(u []WebserverHandler)
-	Start()
-	Stop()
-}
-
 const PROTOCOL_NAME = "wraith-module-pinecomms"
 
-type radio struct {
+type Radio struct {
+	// The private key for this pinecone peer; effectively its "identity".
+	PineconeIdentity ed25519.PrivateKey
+
+	// A logger instance which is passed on to pinecone.
+	Logger *log.Logger
+
+	// The address to listen on for incoming pinecone connections. If this
+	// is an empty string, the node does not listen for connections and
+	// multicast is also disabled (so the node can only connect to peers
+	// outbound and cannot receive peer connections).
+	InboundAddr string
+
+	// The address to listen on for inbound HTTP. This allows peers to connect
+	// to this node over websockets and exposes a debugging endpoint if enabled
+	// via `WebserverDebugPath`. Additional routes can be configured via
+	// `WebserverHandlers`. The webserver is disabled if this option is an empty
+	// string.
+	WebserverAddr string
+
+	// A path on the webserver to expose debugging information at. If this is an
+	// empty string, the node does not expose debugging information. This setting
+	// depends on the webserver being enabled.
+	WebserverDebugPath string
+
+	// Whether to advertise this peer on the local network via multicast. This allows
+	// for peers to find each other locally but may require modifications to firewall
+	// rules. This option is always disabled if `InboundAddr` is not set.
+	UseMulticast bool
+
+	// A list of pinecone nodes with known addresses which this node can connect to
+	// for a more stable connection to the network.
+	StaticPeers []string
+
+	// Additional handlers added to the webserver. This option exists mainly for
+	// efficiency, to allow nodes which also need to run a regular webserver to
+	// use the one used by pinecone for websockets. This saves allocating another
+	// port and other system resources.
+	WebserverHandlers []WebserverHandler
+
+	// INTERNAL
+
 	// Once instances ensuring that each method is only executed once at a given time.
 	startOnce   misc.CheckableOnce
 	stopOnce    misc.CheckableOnce
@@ -63,31 +74,27 @@ type radio struct {
 	// Internal communication channels.
 	reqExit chan struct{}
 	ackExit chan struct{}
-	txq     chan proto.Packet
-	rxq     chan proto.Packet
-
-	// A struct of config options for the radio with a lock to make it thread-safe.
-	conf config
 }
 
-// Start the pinecone radio as configured. This blocks while the
-// radio is running but can be started in a goroutine.
-func (pm *radio) Start() {
+type WebserverHandler struct {
+	Path    string
+	Handler http.Handler
+}
+
+// Start the pinecone radio.
+func (pm *Radio) Start() *pineconeSessions.SessionProtocol {
 	// Reset startOnce when this function exits.
 	defer func() {
 		pm.startOnce = misc.CheckableOnce{}
 	}()
 
+	var pSocket *pineconeSessions.SessionProtocol
+
 	// Only execute this once at a time.
 	pm.startOnce.Do(func() {
 		// Init some internal communication channels.
-		radioInstance.reqExit = make(chan struct{})
-		radioInstance.ackExit = make(chan struct{})
-
-		// Grab a snapshot of the config (this ensures the
-		// config is never in an inconsistent state when values
-		// need to be read multiple times).
-		c := pm.conf.snapshot()
+		pm.reqExit = make(chan struct{})
+		pm.ackExit = make(chan struct{})
 
 		// Keep track of any goroutines we start.
 		var wg sync.WaitGroup
@@ -100,69 +107,22 @@ func (pm *radio) Start() {
 		//
 
 		// Set up pinecone components.
-		pRouter := pineconeRouter.NewRouter(c.logger, c.pineconeIdentity)
-		pQUIC := pineconeSessions.NewSessions(c.logger, pRouter, []string{PROTOCOL_NAME})
-		pMulticast := pineconeMulticast.NewMulticast(c.logger, pRouter)
+		pRouter := pineconeRouter.NewRouter(pm.Logger, pm.PineconeIdentity)
+		pQUIC := pineconeSessions.NewSessions(pm.Logger, pRouter, []string{PROTOCOL_NAME})
+		pMulticast := pineconeMulticast.NewMulticast(pm.Logger, pRouter)
 		pManager := pineconeConnections.NewConnectionManager(pRouter, nil)
 
-		// Set up rx queue handling.
-		pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
-		pMux.PathPrefix(proto.ROUTE_PREFIX).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Read the payload from request body.
-			data, err := io.ReadAll(r.Body)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			// Fill out packet metadata.
-			p := proto.Packet{
-				Peer:   r.RemoteAddr,
-				Method: r.Method,
-				Route:  strings.TrimPrefix(r.URL.EscapedPath(), proto.ROUTE_PREFIX),
-				Data:   data,
-			}
-
-			// Respond so the requester doesn't have to wait for the queue to empty.
-			w.WriteHeader(http.StatusNoContent)
-
-			// Add to the queue.
-			pm.rxq <- p
-		})
-
-		pHTTP := pQUIC.Protocol(PROTOCOL_NAME).HTTP()
-		pHTTP.Mux().Handle("/", pMux)
-
-		// Pinecone HTTP server.
-		pineconeHttpServer := http.Server{
-			Addr:         ":0",
-			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  60 * time.Second,
-			BaseContext: func(_ net.Listener) context.Context {
-				return ctx
-			},
-			Handler: pMux,
-		}
-
-		// Start pinecone HTTP server in goroutine.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			pineconeHttpServer.Serve(pQUIC.Protocol(PROTOCOL_NAME))
-		}()
+		pSocket = pQUIC.Protocol(PROTOCOL_NAME)
 
 		// Listen for inbound connections if a TCP listener was configured.
-		if c.inboundAddr != "" {
+		if pm.InboundAddr != "" {
 			wg.Add(1)
 
 			go func(ctx context.Context, wg *sync.WaitGroup, pRouter *pineconeRouter.Router) {
 				defer wg.Done()
 
 				listenCfg := net.ListenConfig{}
-				listener, err := listenCfg.Listen(ctx, "tcp", c.inboundAddr)
+				listener, err := listenCfg.Listen(ctx, "tcp", pm.InboundAddr)
 
 				if err != nil {
 					// TODO: Handle this?
@@ -232,18 +192,18 @@ func (pm *radio) Start() {
 		})
 
 		// If a webserver debug path is specified, set up pinecone manhole at that path.
-		if c.webserverDebugPath != "" {
-			httpRouter.HandleFunc(c.webserverDebugPath, pRouter.ManholeHandler)
+		if pm.WebserverDebugPath != "" {
+			httpRouter.HandleFunc(pm.WebserverDebugPath, pRouter.ManholeHandler)
 		}
 
 		// If additional handlers are configured for the webserver, add them.
-		for _, handler := range c.webserverHandlers {
+		for _, handler := range pm.WebserverHandlers {
 			httpRouter.PathPrefix(handler.Path).Handler(handler.Handler)
 		}
 
 		// Non-pinecone HTTP server.
 		httpServer := http.Server{
-			Addr:         c.webserverAddr,
+			Addr:         pm.WebserverAddr,
 			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
@@ -263,84 +223,52 @@ func (pm *radio) Start() {
 		}()
 
 		// Set up multicast discovery if enabled.
-		if c.useMulticast {
+		if pm.UseMulticast {
 			wg.Add(1)
 			pMulticast.Start()
 		}
 
 		// Connect to any static peers we were given.
-		for _, peer := range c.staticPeers {
+		for _, peer := range pm.StaticPeers {
 			pManager.AddPeer(peer)
 		}
 
-		// Manage tx queue.
-		wg.Add(1)
-		go func(ctx context.Context) {
-			defer wg.Done()
+		go func() {
+			// Wait until exit is requested.
+			<-pm.reqExit
 
-			for {
-				select {
-				case p := <-pm.txq:
+			// Kill all goroutines we spawned which have our context.
+			ctxCancel()
 
-					// Set up request to peer.
-					req := http.Request{
-						Method: p.Method,
-						URL: &url.URL{
-							Scheme: "http",
-							Host:   p.Peer,
-							Path:   proto.ROUTE_PREFIX + p.Route,
-						},
-						Cancel: ctx.Done(),
-						Body:   io.NopCloser(bytes.NewReader(p.Data)),
-					}
+			// Tear down non-pinecone HTTP server.
+			httpShutdownTimeoutCtx, httpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
+			httpServer.Shutdown(httpShutdownTimeoutCtx)
+			httpShutdownTimeoutCtxCancel()
 
-					// Send request to peer.
-					pHTTP.Client().Do(&req)
-
-				case <-ctx.Done():
-					// If the context is closed, exit.
-					return
-				}
+			// Tear down pinecone components.
+			if pm.UseMulticast {
+				pMulticast.Stop()
+				wg.Done()
 			}
-		}(ctx)
+			pManager.RemovePeers()
+			pQUIC.Close()
+			//pRouter.Close()
 
-		// Wait until exit is requested.
-		<-pm.reqExit
+			// Wait for all the goroutines we started to exit.
+			wg.Wait()
 
-		// Kill all goroutines we spawned which have our context.
-		ctxCancel()
-
-		// Tear down non-pinecone HTTP server.
-		httpShutdownTimeoutCtx, httpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
-		httpServer.Shutdown(httpShutdownTimeoutCtx)
-		httpShutdownTimeoutCtxCancel()
-
-		// Tear down pinecone HTTP server.
-		phttpShutdownTimeoutCtx, phttpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
-		pineconeHttpServer.Shutdown(phttpShutdownTimeoutCtx)
-		phttpShutdownTimeoutCtxCancel()
-
-		// Tear down pinecone components.
-		if c.useMulticast {
-			pMulticast.Stop()
-			wg.Done()
-		}
-		pManager.RemovePeers()
-		pQUIC.Close()
-		//pRouter.Close()
-
-		// Wait for all the goroutines we started to exit.
-		wg.Wait()
-
-		// Acknowledge the exit request.
-		close(pm.ackExit)
+			// Acknowledge the exit request.
+			close(pm.ackExit)
+		}()
 	})
+
+	return pSocket
 }
 
 // Stop the pinecone radio.
-func (pm *radio) Stop() {
+func (pm *Radio) Stop() {
 	// Reset stopOnce when this function exits.
-	defer func(pm *radio) {
+	defer func(pm *Radio) {
 		pm.stopOnce = misc.CheckableOnce{}
 	}(pm)
 
@@ -365,9 +293,9 @@ func (pm *radio) Stop() {
 }
 
 // Restart the pinecone radio. Equivalent to calling Stop() and Start().
-func (pm *radio) Restart() {
+func (pm *Radio) Restart() {
 	// Reset restartOnce when this function exits.
-	defer func(pm *radio) {
+	defer func(pm *Radio) {
 		pm.restartOnce = misc.CheckableOnce{}
 	}(pm)
 
@@ -378,94 +306,34 @@ func (pm *radio) Restart() {
 	})
 }
 
-// Send a given packet to a specific peer.
-func (pm *radio) Send(ctx context.Context, p proto.Packet) error {
-	select {
-	case pm.txq <- p:
-		return nil
-	case <-pm.ackExit:
-		return fmt.Errorf("radio exited while trying to send packet")
-	case <-ctx.Done():
-		return fmt.Errorf("context cancelled while trying to send packet (%e)", ctx.Err())
-	}
-}
-
-// Receive incoming packets. Blocks until either a packet is received or
-// the provided context expires.
-func (pm *radio) Recv(ctx context.Context) (proto.Packet, error) {
-	select {
-	case p := <-pm.rxq:
-		return p, nil
-	case <-pm.ackExit:
-		return proto.Packet{}, fmt.Errorf("radio exited while trying to receive packet")
-	case <-ctx.Done():
-		return proto.Packet{}, fmt.Errorf("context cancelled while trying to receive packet (%e)", ctx.Err())
-	}
-}
-
-// Receive incoming packets from a channel.
-func (pm *radio) RecvChan(ctx context.Context) chan proto.Packet {
-	c := make(chan proto.Packet)
-	go func() {
-		defer func() {
-			close(c)
-		}()
-		for {
-			packet, err := pm.Recv(ctx)
-			if err != nil {
-				return
-			}
-			c <- packet
-		}
-	}()
-	return c
-}
-
 // Check whether the pinecone radio is currently running.
-func (pm *radio) IsRunning() bool {
+func (pm *Radio) IsRunning() bool {
 	return pm.startOnce.Doing()
 }
 
 var initonce sync.Once
-var radioInstance *radio = nil
 
-// Get the instance of the pinecone radio. This instance is shared for
-// the entire program and successive calls return the existing instance.
-func GetInstance() Radio {
-	// Create and initialise an instance of radio only once.
+// Get an instance of the pinecone radio.
+func GetInstance() *Radio {
 	initonce.Do(func() {
-		// Disable quic-go's debug message
+		// Disable quic-go's debug message.
 		os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
-
-		radioInstance = &radio{}
-
-		// Generate some default options.
-
-		_, randomPineconeIdentity, randomPineconeIdentityErr := ed25519.GenerateKey(nil)
-		if randomPineconeIdentityErr != nil {
-			panic(fmt.Errorf("fatal error while generating pinecone identity for radio defaults: %e", randomPineconeIdentityErr))
-		}
-
-		defaults := configSnapshot{
-			pineconeIdentity:   randomPineconeIdentity,
-			logger:             log.New(io.Discard, "", 0),
-			inboundAddr:        ":0",
-			webserverAddr:      ":0",
-			webserverDebugPath: "",
-			useMulticast:       false,
-			staticPeers:        []string{},
-			webserverHandlers:  []WebserverHandler{},
-		}
-
-		// Set default config values to ensure that the config is never
-		// in an unusable state and allow for sane options without setting
-		// everything manually.
-		radioInstance.conf.configSnapshot = defaults
-
-		// Init communication channels.
-		radioInstance.txq = make(chan proto.Packet)
-		radioInstance.rxq = make(chan proto.Packet)
 	})
 
-	return radioInstance
+	// Generate some default options.
+	_, randomPineconeIdentity, randomPineconeIdentityErr := ed25519.GenerateKey(nil)
+	if randomPineconeIdentityErr != nil {
+		panic(fmt.Errorf("fatal error while generating pinecone identity for radio defaults: %e", randomPineconeIdentityErr))
+	}
+
+	return &Radio{
+		PineconeIdentity:   randomPineconeIdentity,
+		Logger:             log.New(io.Discard, "", 0),
+		InboundAddr:        ":0",
+		WebserverAddr:      ":0",
+		WebserverDebugPath: "",
+		UseMulticast:       false,
+		StaticPeers:        []string{},
+		WebserverHandlers:  []WebserverHandler{},
+	}
 }

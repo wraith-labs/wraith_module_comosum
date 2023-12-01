@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/cmd/pc3/lib"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"

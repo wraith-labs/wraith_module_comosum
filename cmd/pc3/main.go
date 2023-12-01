@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/cmd/pc3/lib"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/proto"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/radio"
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )

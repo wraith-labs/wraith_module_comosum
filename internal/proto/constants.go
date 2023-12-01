@@ -8,6 +8,8 @@ const (
 	// https://web.archive.org/web/20220618041607/https://www.ssa.gov/oact/babynames/decades/century.html
 	CURRENT_PROTO = "james"
 
+	ADMIN_PORT = 45235
+
 	// The prefix for all Wraith PineComms HTTP routes.
 	ROUTE_PREFIX = "/_wpc/" + CURRENT_PROTO + "/"
 )

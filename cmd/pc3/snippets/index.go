@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/cmd/pc3/lib"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/proto"
 )
 
 var Snippets map[string]func(ctx lib.CommandContext, arg string) (string, error)

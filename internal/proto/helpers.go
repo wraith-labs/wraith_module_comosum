@@ -9,8 +9,7 @@ import (
 )
 
 type packet interface {
-	PacketRegReq | PacketRegRes |
-	PacketCmdReq | PacketCmdRes
+	PacketHeartbeatReq | PacketExchangeReq | PacketExchangeRes
 }
 
 // Converts a packet into a byte array ready for transmission.

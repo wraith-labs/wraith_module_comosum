@@ -6,7 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/cmd/pc3/lib"
 )
 
 func snippetSendallx(ctx lib.CommandContext, arg string) (string, error) {

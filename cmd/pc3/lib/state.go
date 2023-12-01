@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/proto"
 	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

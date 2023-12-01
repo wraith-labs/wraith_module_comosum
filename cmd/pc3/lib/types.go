@@ -5,8 +5,8 @@ import (
 	"crypto/ed25519"
 	"time"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/proto"
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/radio"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/proto"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/radio"
 	"maunium.net/go/mautrix"
 )
 

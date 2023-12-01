@@ -3,8 +3,7 @@ package main
 import (
 	"fmt"
 
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/cmd/pc3/lib"
-	"dev.l1qu1d.net/wraith-labs/wraith-module-pinecomms/internal/symbols"
+	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/cmd/pc3/lib"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
 	"github.com/traefik/yaegi/stdlib/syscall"
@@ -50,9 +49,9 @@ func ExecCmd(ctx lib.CommandContext, command string) (response string, errRespon
 	i.Use(syscall.Symbols)
 	i.Use(unsafe.Symbols)
 	i.Use(unrestricted.Symbols)
-	i.Use(symbols.SymbolsLibwraith)
+	/*i.Use(symbols.SymbolsLibwraith)
 	i.Use(symbols.SymbolsPc3)
-	i.Use(symbols.SymbolsProto)
+	i.Use(symbols.SymbolsProto)*/
 
 	i.ImportUsed()
 

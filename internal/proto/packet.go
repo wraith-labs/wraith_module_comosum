@@ -41,7 +41,6 @@ type PacketExchangeReq struct {
 	}
 	Dump  bool
 	Prune bool
-	Init  bool
 }
 
 type PacketExchangeRes struct {
@@ -49,8 +48,10 @@ type PacketExchangeRes struct {
 	Set     []string       // The cells that have been updated.
 	Get     map[string]any // The contents of the requested cells mapped to their names.
 	Watch   map[string]int // The WatchIds of the cells that are watched because of this command, mapped to the cell names.
-	Unwatch []string       // The cell names of the cells that have been unwatched.
-	Dump    map[string]any // The full contents of the memory (if requested).
-	Prune   int            // How many cells have been pruned.
-	Init    error          // Whether the SHM has been successfully reinitialised.
+	Unwatch []struct {
+		CellName string
+		WatchId  int
+	} // The cell names of the cells that have been unwatched.
+	Dump  map[string]any // The full contents of the memory (if requested).
+	Prune int            // How many cells have been pruned.
 }

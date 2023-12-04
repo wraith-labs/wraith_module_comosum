@@ -5,7 +5,7 @@ go 1.21.1
 toolchain go1.21.4
 
 require (
-	dev.l1qu1d.net/wraith-labs/wraith/libwraith v0.0.0-20230616015345-11b443349a7b
+	dev.l1qu1d.net/wraith-labs/wraith/libwraith v0.0.0-20231203221614-83e47d2665d9
 	github.com/awnumar/memguard v0.22.3
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/gologme/log v1.3.0
@@ -16,7 +16,7 @@ require (
 	github.com/yggdrasil-network/yggdrasil-go v0.5.4
 	gorm.io/driver/sqlite v1.5.4
 	gorm.io/gorm v1.25.5
-	gvisor.dev/gvisor v0.0.0-20231130223849-479d60c2258b
+	gvisor.dev/gvisor v0.0.0-20231202080514-126ee58746d1
 	maunium.net/go/mautrix v0.16.2
 )
 
@@ -28,7 +28,7 @@ require (
 	github.com/bits-and-blooms/bloom/v3 v3.6.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/pprof v0.0.0-20231127191134-f3a68a39ae15 // indirect
+	github.com/google/pprof v0.0.0-20231203200248-ad67f76aa53d // indirect
 	github.com/hjson/hjson-go/v4 v4.3.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect

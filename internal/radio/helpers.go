@@ -1,4 +1,4 @@
-package proto
+package radio
 
 import (
 	"crypto/ed25519"

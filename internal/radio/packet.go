@@ -1,4 +1,4 @@
-package proto
+package radio
 
 import "time"
 
@@ -28,6 +28,9 @@ type PacketHeartbeatReq struct {
 
 	// The ID of the user under which Wraith is running.
 	HostUserId string
+
+	// The host:port combo of this instance's management API.
+	ManagementAPI string
 }
 
 type PacketExchangeReq struct {

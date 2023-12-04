@@ -58,16 +58,16 @@ func (n *Node) Admin() *admin.AdminSocket {
 	return n.admin
 }
 
-func (n *Node) GenerateConfig() {
+func (n *Node) GenerateConfig(listen []string, peers []string, debugSocket string) {
 	// Get the defaults for the platform.
 	defaults := config.GetDefaults()
 
 	// Create a node configuration and populate it.
 	cfg := new(config.NodeConfig)
 	cfg.NewPrivateKey()
-	cfg.Listen = LISTEN
-	cfg.AdminListen = DEBUG_SOCKET
-	cfg.Peers = PEERS
+	cfg.Listen = listen
+	cfg.AdminListen = debugSocket
+	cfg.Peers = peers
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedPublicKeys = []string{}
 	cfg.MulticastInterfaces = defaults.DefaultMulticastInterfaces

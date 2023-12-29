@@ -5,25 +5,22 @@ WORKDIR /build/
 COPY . /build/
 
 RUN cd /build && \
-    apk add build-base olm-dev && \
-    go version && \
-    go build -trimpath -o pc3 cmd/pc3/*.go
+    apk add build-base && \
+    go install mvdan.cc/garble@latest && \
+    go version && garble version && \
+    garble build -trimpath -o wmc3 cmd/wm3/*.go
 
 FROM alpine
 
-COPY --from=builder /build/pc3 /usr/bin/pc3
+COPY --from=builder /build/wmc3 /usr/bin/wmc3
 
 ENV \
-WMP_HOMESERVER= \
-WMP_USERNAME= \
-WMP_PASSWORD= \
-WMP_ADMIN_ROOM= \
-WMP_ID_PINECONE= \
-WMP_LOG_PINECONE= \
-WMP_INBOUND_TCP_PINECONE= \
-WMP_INBOUND_WEB_PINECONE= \
-WMP_DEBUG_ENDPOINT_PINECONE= \
-WMP_USE_MULTICAST_PINECONE= \
-WMP_STATIC_PEERS_PINECONE=
+WMC3_DEBUG = "false" \
+WMC3_YGG_IDENTITY = "" \
+WMC3_YGG_STATIC_PEERS = "" \
+WMC3_YGG_LISTENERS = "" \
+WMC3_NATS_ADMIN_USER = "" \
+WMC3_NATS_ADMIN_PASS = "" \
+WMC3_NATS_LISTENER = "0.0.0.0:4222"
 
-ENTRYPOINT ["/usr/bin/pc3"]
+ENTRYPOINT ["/usr/bin/wmc3"]

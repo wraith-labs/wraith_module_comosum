@@ -4,6 +4,7 @@ package radio
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -58,13 +59,13 @@ func (n *Node) Admin() *admin.AdminSocket {
 	return n.admin
 }
 
-func (n *Node) GenerateConfig(listen []string, peers []string, debugSocket string) {
+func (n *Node) GenerateConfig(privkey ed25519.PrivateKey, listen []string, peers []string, debugSocket string) {
 	// Get the defaults for the platform.
 	defaults := config.GetDefaults()
 
 	// Create a node configuration and populate it.
 	cfg := new(config.NodeConfig)
-	cfg.NewPrivateKey()
+	cfg.PrivateKey = config.KeyBytes(privkey)
 	cfg.Listen = listen
 	cfg.AdminListen = debugSocket
 	cfg.Peers = peers
